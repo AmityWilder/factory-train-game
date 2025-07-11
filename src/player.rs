@@ -1,5 +1,7 @@
 use raylib::prelude::*;
-use crate::{coords::PlayerVector3, factory::Factory};
+use crate::{coords::{PlayerCoord, PlayerVector3}, factory::Factory};
+
+const WORLD_FLOOR_Y: i32 = 0;
 
 pub struct Player {
     pub position: PlayerVector3,
@@ -34,8 +36,17 @@ impl Player {
 
         let dt = rl.get_frame_time();
 
+        let on_ground = self.position.y.to_f32() as i32 <= WORLD_FLOOR_Y;
+
+        if on_ground {
+            self.velocity.y = PlayerCoord::from_i32(0);
+        }
+
         // Movement
         {
+            if on_ground && rl.is_key_pressed(KEY_SPACE) {
+                
+            }
             if rl.is_key_pressed(KEY_LEFT_SHIFT) {
                 self.is_running = !self.is_running;
             } else if rl.is_key_pressed(KEY_LEFT_SHIFT) {
