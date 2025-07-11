@@ -61,11 +61,12 @@ impl Player {
             // Measured in meters per second
             let move_speed = if self.is_running { self.run_speed } else { self.walk_speed };
 
-            let movement_forward = dbg!((rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32 * move_speed); 
+            let movement_forward = (rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32 * move_speed; 
             let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32 * move_speed;
             self.velocity.x = movement_right.into();
             self.velocity.z = movement_forward.into();
-            self.position += dbg!(dbg!(self.velocity) * dbg!(PlayerCoord::from(dt)));
+            assert!(self.velocity.z < 100);
+            self.position += self.velocity * PlayerCoord::from(dt);
         }
     }
 }
