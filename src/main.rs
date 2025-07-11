@@ -37,11 +37,11 @@ fn main() {
         machines: vec![
             Machine::Reactor(Reactor {
                 position: FactoryVector3 { x: 5, y: 0, z: -4 },
-                rotation: Cardinal2D::N,
+                rotation: Cardinal2D::North,
             }),
             Machine::Reactor(Reactor {
                 position: FactoryVector3 { x: -5, y: 2, z: -4 },
-                rotation: Cardinal2D::N,
+                rotation: Cardinal2D::North,
             }),
         ],
     };
