@@ -184,6 +184,106 @@ impl FactoryVector3 {
             z: origin.z + self.z as i32,
         }
     }
+
+    #[inline]
+    pub const fn plus(self, rhs: Self) -> Self {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+
+    #[inline]
+    pub const fn minus(self, rhs: Self) -> Self {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
+    }
+
+    #[inline]
+    pub const fn scale(self, rhs: i16) -> Self {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        }
+    }
+
+    #[inline]
+    pub const fn multiply(self, rhs: Self) -> Self {
+        Self {
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+            z: self.z * rhs.z,
+        }
+    }
+}
+
+impl Add for FactoryVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        self.plus(rhs)
+    }
+}
+
+impl AddAssign for FactoryVector3 {
+    #[inline]
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.plus(rhs)
+    }
+}
+
+impl Sub for FactoryVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.minus(rhs)
+    }
+}
+
+impl SubAssign for FactoryVector3 {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = self.minus(rhs)
+    }
+}
+
+impl Mul<i16> for FactoryVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: i16) -> Self::Output {
+        self.scale(rhs)
+    }
+}
+
+impl MulAssign<i16> for FactoryVector3 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: i16) {
+        *self = self.scale(rhs)
+    }
+}
+
+impl Mul for FactoryVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.multiply(rhs)
+    }
+}
+
+impl MulAssign for FactoryVector3 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.multiply(rhs)
+    }
 }
 
 /// Uses global integer coordinates
@@ -203,11 +303,111 @@ impl RailVector3 {
             z: Q32_32::from_i32(self.z),
         }
     }
+
+    #[inline]
+    pub const fn plus(self, rhs: Self) -> Self {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+
+    #[inline]
+    pub const fn minus(self, rhs: Self) -> Self {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
+    }
+
+    #[inline]
+    pub const fn scale(self, rhs: i32) -> Self {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        }
+    }
+
+    #[inline]
+    pub const fn multiply(self, rhs: Self) -> Self {
+        Self {
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+            z: self.z * rhs.z,
+        }
+    }
 }
 
 impl From<RailVector3> for PlayerVector3 {
     #[inline]
     fn from(value: RailVector3) -> Self {
         value.to_player()
+    }
+}
+
+impl Add for RailVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        self.plus(rhs)
+    }
+}
+
+impl AddAssign for RailVector3 {
+    #[inline]
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.plus(rhs)
+    }
+}
+
+impl Sub for RailVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.minus(rhs)
+    }
+}
+
+impl SubAssign for RailVector3 {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = self.minus(rhs)
+    }
+}
+
+impl Mul<i32> for RailVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: i32) -> Self::Output {
+        self.scale(rhs)
+    }
+}
+
+impl MulAssign<i32> for RailVector3 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: i32) {
+        *self = self.scale(rhs)
+    }
+}
+
+impl Mul for RailVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.multiply(rhs)
+    }
+}
+
+impl MulAssign for RailVector3 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.multiply(rhs)
     }
 }

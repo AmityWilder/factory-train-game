@@ -1,24 +1,11 @@
 use std::ops::*;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Q32_32(i64);
 
 impl std::fmt::UpperHex for Q32_32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:>08X}.{:>08X}", self.0.cast_unsigned() >> Self::DECIMAL_BITS, self.0 & Self::DECIMAL_MASK)
-    }
-}
-
-impl std::fmt::Display for Q32_32 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{:>010}", self.0.cast_unsigned() >> Self::DECIMAL_BITS, self.0 & Self::DECIMAL_MASK)
-    }
-}
-
-impl std::fmt::Debug for Q32_32 {
-    #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
     }
 }
 
@@ -96,12 +83,90 @@ impl Add for Q32_32 {
     }
 }
 
+impl AddAssign for Q32_32 {
+    #[inline]
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.add(rhs)
+    }
+}
+
+impl Add<i32> for Q32_32 {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: i32) -> Self::Output {
+        self.add(Self::from(rhs))
+    }
+}
+
+impl AddAssign<i32> for Q32_32 {
+    #[inline]
+    fn add_assign(&mut self, rhs: i32) {
+        *self = self.add(rhs)
+    }
+}
+
+impl Add<f32> for Q32_32 {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: f32) -> Self::Output {
+        self.add(Self::from(rhs))
+    }
+}
+
+impl AddAssign<f32> for Q32_32 {
+    #[inline]
+    fn add_assign(&mut self, rhs: f32) {
+        *self = self.add(rhs)
+    }
+}
+
 impl Sub for Q32_32 {
     type Output = Self;
 
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         self.minus(rhs)
+    }
+}
+
+impl SubAssign for Q32_32 {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = self.sub(rhs)
+    }
+}
+
+impl Sub<i32> for Q32_32 {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, rhs: i32) -> Self::Output {
+        self.sub(Self::from(rhs))
+    }
+}
+
+impl SubAssign<i32> for Q32_32 {
+    #[inline]
+    fn sub_assign(&mut self, rhs: i32) {
+        *self = self.sub(rhs)
+    }
+}
+
+impl Sub<f32> for Q32_32 {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, rhs: f32) -> Self::Output {
+        self.sub(Self::from(rhs))
+    }
+}
+
+impl SubAssign<f32> for Q32_32 {
+    #[inline]
+    fn sub_assign(&mut self, rhs: f32) {
+        *self = self.sub(rhs)
     }
 }
 
@@ -113,11 +178,10 @@ impl Mul for Q32_32 {
     }
 }
 
-impl Mul<i64> for Q32_32 {
-    type Output = Self;
-
-    fn mul(self, rhs: i64) -> Self::Output {
-        Self(self.0 * rhs)
+impl MulAssign for Q32_32 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.mul(rhs)
     }
 }
 
@@ -125,22 +189,30 @@ impl Mul<i32> for Q32_32 {
     type Output = Self;
 
     fn mul(self, rhs: i32) -> Self::Output {
-        Self(self.0 * rhs as i64)
+        self.mul(Self::from(rhs))
     }
 }
 
-
-impl AddAssign for Q32_32 {
+impl MulAssign<i32> for Q32_32 {
     #[inline]
-    fn add_assign(&mut self, rhs: Self) {
-        *self = self.plus(rhs)
+    fn mul_assign(&mut self, rhs: i32) {
+        *self = self.mul(rhs)
     }
 }
 
-impl SubAssign for Q32_32 {
+impl Mul<f32> for Q32_32 {
+    type Output = Self;
+
     #[inline]
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = self.minus(rhs)
+    fn mul(self, rhs: f32) -> Self::Output {
+        self.mul(Self::from(rhs))
+    }
+}
+
+impl MulAssign<f32> for Q32_32 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: f32) {
+        *self = self.mul(rhs)
     }
 }
 

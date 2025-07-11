@@ -26,9 +26,10 @@ fn main() {
         .msaa_4x()
         .build();
 
+    rl.set_target_fps(60);
     rl.maximize_window();
 
-    let _font = rl.load_font_from_memory(&thread, ".ttf", include_bytes!("./FiraCode-Regular.ttf"), 20, None).unwrap();
+    let font = rl.load_font_from_memory(&thread, ".ttf", include_bytes!("./FiraCode-Regular.ttf"), 20, None).unwrap();
 
     let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::new(0, 0, 0));
 
@@ -63,5 +64,18 @@ fn main() {
         }
 
         d.draw_fps(0, 0);
+        d.draw_text_ex(
+            &font,
+            &format!(
+                "player position: ({:X}, {:X}, {:X})",
+                player.position.x,
+                player.position.y,
+                player.position.z,
+            ),
+            Vector2::new(0.0, 20.0),
+            20.0,
+            0.0,
+            Color::MAGENTA,
+        );
     }
 }
