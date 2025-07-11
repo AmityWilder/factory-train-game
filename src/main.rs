@@ -1,10 +1,13 @@
+#![allow(dead_code)]
+
 use std::num::NonZeroU32;
 use raylib::prelude::*;
 
-pub mod units;
+pub mod coords;
+use crate::coords::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Point3 {
+pub struct Point3D {
     pub x: i32,
     pub y: i32,
     pub z: i32,
@@ -21,12 +24,12 @@ pub enum Cardinal2D {
 }
 
 impl Cardinal2D {
-    pub const fn as_orientation(self) -> Orientation2D {
+    pub const fn as_orientation(self) -> Ordinal2D {
         match self {
-            Self::E => Orientation2D::E,
-            Self::N => Orientation2D::N,
-            Self::W => Orientation2D::W,
-            Self::S => Orientation2D::S,
+            Self::E => Ordinal2D::E,
+            Self::N => Ordinal2D::N,
+            Self::W => Ordinal2D::W,
+            Self::S => Ordinal2D::S,
         }
     }
 
@@ -41,6 +44,7 @@ impl Cardinal2D {
 impl std::ops::Sub for Cardinal2D {
     type Output = Self;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         self.minus(rhs)
     }
@@ -48,7 +52,7 @@ impl std::ops::Sub for Cardinal2D {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[repr(u8)]
-pub enum Orientation2D {
+pub enum Ordinal2D {
     #[default]
     E,
     NE,
@@ -60,7 +64,7 @@ pub enum Orientation2D {
     SE,
 }
 
-impl Orientation2D {
+impl Ordinal2D {
     /// Converts orientation to an angle in radians
     pub const fn radians(self) -> f32 {
         self as u8 as f32 * std::f32::consts::FRAC_PI_8
@@ -91,27 +95,32 @@ pub enum Flow {
     Both = 3,
 }
 
+pub struct BeltNode {
+    pub position: Point3D,
+    pub rotation: Ordinal2D,
+}
+
 /// Each level doubles speed
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum BeltLevel {
-    Mk1 = 1,
-    Mk2 = Self::Mk1 as u8 * 2,
-    Mk3 = Self::Mk2 as u8 * 2,
-    Mk4 = Self::Mk3 as u8 * 2,
-    Mk5 = Self::Mk4 as u8 * 2,
-    Mk6 = Self::Mk5 as u8 * 2,
-    Mk7 = Self::Mk6 as u8 * 2,
-    Mk8 = Self::Mk7 as u8 * 2,
+    Mk1 = 1 << 0,
+    Mk2 = 1 << 1,
+    Mk3 = 1 << 2,
+    Mk4 = 1 << 3,
+    Mk5 = 1 << 4,
+    Mk6 = 1 << 5,
+    Mk7 = 1 << 6,
+    Mk8 = 1 << 7,
 }
 
 /// Belts are 1 meter wide, minimum 1 meter long, and have 1 meter vertical clearance.
 pub struct Belt {
     /// Each level doubles speed
     pub level: BeltLevel,
-    pub src_position: Point3,
+    pub src_position: Point3D,
     pub src_rotation: Cardinal2D,
-    pub dst_position: Point3,
+    pub dst_position: Point3D,
     pub dst_rotation: Cardinal2D,
 }
 
@@ -120,31 +129,35 @@ impl Belt {
     pub const fn speed(&self) -> usize {
         self.level as usize
     }
+}
 
-    /// Length in floored meters (determines belt capacity and cost)
-    pub const fn calc_length(src_pos: Point3, src_rot: Cardinal2D, dst_pos: Point3, dst_rot: Cardinal2D) -> usize {
-        let rot_diff = dst_rot.minus(src_rot);
+/// Reacts two solutions to produce a pair of results
+pub struct Reactor {
+    pub position: FactoryVector3,
+    pub rotation: Cardinal2D,
+}
 
+impl Reactor {
+    pub const fn clearance(&self) -> FactoryVector3 {
+        FactoryVector3 { x: 2, y: 1, z: 1 }
+    }
+
+    pub const fn inputs(&self) -> [FactoryVector3; 2] {
         todo!()
     }
 
-    /// Length in meters (determines belt capacity and cost)
-    pub const fn length(&self) -> usize {
-        Self::calc_length(self.src_position, self.src_rotation, self.dst_position, self.dst_rotation)
+    pub const fn outputs(&self) -> [FactoryVector3; 2] {
+        todo!()
+    }
+
+    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
+        // d.draw_cube(position, width, height, length, color);
     }
 }
 
-pub struct Constructor {
-
-}
-
-pub struct Assembler {
-
-}
-
 pub enum Machine {
-    Ctor(Constructor),
-    Asm(Assembler),
+    Reactor(Reactor),
+    // todo: more machines
 }
 
 impl Machine {
@@ -152,18 +165,36 @@ impl Machine {
     /// `[length, width, height]`
     pub const fn clearance(&self) -> [NonZeroU32; 3] {
         match self {
-            Self::Ctor(_) => [
+            Self::Reactor(_) => [
                 unsafe { NonZeroU32::new_unchecked(2) },
                 unsafe { NonZeroU32::new_unchecked(1) },
                 unsafe { NonZeroU32::new_unchecked(1) },
-            ],
-            Self::Asm(_) => [
-                unsafe { NonZeroU32::new_unchecked(3) },
-                unsafe { NonZeroU32::new_unchecked(2) },
-                unsafe { NonZeroU32::new_unchecked(2) },
             ],
         }
     }
+
+    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
+        match self {
+            Machine::Reactor(reactor) => reactor.draw(d, thread, player_pos),
+        }
+    }
+}
+
+pub struct Factory {
+    pub origin: RailVector3,
+    pub machines: Vec<Machine>,
+}
+
+impl Factory {
+    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
+        for machine in &self.machines {
+            machine.draw(d, thread, player_pos);
+        }
+    }
+}
+
+pub struct Player {
+    pub position: PlayerVector3,
 }
 
 fn main() {
@@ -175,12 +206,20 @@ fn main() {
     rl.set_target_fps(60);
     rl.maximize_window();
 
-    let machines: Vec<Machine> = Vec::new();
+    let mut machines: Vec<Machine> = Vec::new();
+    let mut player = Player {
+        position: PlayerVector3::new(0, 0, 0),
+    };
 
     while !rl.window_should_close() {
-
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
+        {
+            let camera = Camera3D::perspective(player.position.to_vec3(), Vector3::X, Vector3::Y, 45.0);
+            let mut d = d.begin_mode3D(camera);
+            d.draw_cube(Vector3::new(5.0, 0.0, 1.0), 1.0, 1.0, 1.0, Color::BLUE);
+            d.draw_cube(Vector3::new(7.0, 0.0, 1.0), 1.0, 1.0, 1.0, Color::ORANGE);
+        }
     }
 }
