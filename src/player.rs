@@ -2,6 +2,7 @@ use raylib::prelude::*;
 use crate::{coords::{PlayerCoord, PlayerVector3}, factory::Factory};
 
 const WORLD_FLOOR_Y: i32 = 0;
+const GRAVITY: f32 = 9.8;
 
 pub struct Player {
     pub position: PlayerVector3,
@@ -38,14 +39,18 @@ impl Player {
 
         let on_ground = self.position.y.to_f32() as i32 <= WORLD_FLOOR_Y;
 
-        if on_ground {
-            self.velocity.y = PlayerCoord::from_i32(0);
+        if !on_ground {
+            self.velocity.y -= PlayerCoord::from_f32(GRAVITY);
+        } else {
+            if self.velocity.y < PlayerCoord::from_i32(0) {
+                self.velocity.y = 0.into();
+            }
         }
 
         // Movement
         {
             if on_ground && rl.is_key_pressed(KEY_SPACE) {
-                
+                self.velocity.y = PlayerCoord::from_i32(5);
             }
             if rl.is_key_pressed(KEY_LEFT_SHIFT) {
                 self.is_running = !self.is_running;
@@ -56,10 +61,11 @@ impl Player {
             // Measured in meters per second
             let move_speed = if self.is_running { self.run_speed } else { self.walk_speed };
 
-            let movement_forward = (rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32;
-            let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32;
-            self.velocity = PlayerVector3::from_vec3(Vector3::new(movement_right, 0.0, movement_forward) * move_speed * dt);
-            self.position += self.velocity;
+            let movement_forward = dbg!((rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32 * move_speed); 
+            let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32 * move_speed;
+            self.velocity.x = movement_right.into();
+            self.velocity.z = movement_forward.into();
+            self.position += dbg!(dbg!(self.velocity) * dbg!(PlayerCoord::from(dt)));
         }
     }
 }
