@@ -24,6 +24,15 @@ impl Cardinal2D {
         }
     }
 
+    /// Add rhs to self
+    #[inline]
+    pub const fn plus(self, rhs: Self) -> Self {
+        let value = self.as_ordinal().plus(rhs.as_ordinal());
+
+        // SAFETY: Cardinal add/sub guaranteed to result in a cardinal
+        unsafe { value.as_cardinal_unchecked() }
+    }
+
     /// Subtract rhs from self
     #[inline]
     pub const fn minus(self, rhs: Self) -> Self {
@@ -74,6 +83,7 @@ impl Ordinal2D {
     #[inline]
     pub const unsafe fn as_cardinal_unchecked(self) -> Cardinal2D {
         debug_assert!(matches!(self, Self::East|Self::North|Self::West|Self::South));
+
         // SAFETY: Caller must uphold safety contract
         unsafe { std::mem::transmute::<Self, Cardinal2D>(self) }
     }
@@ -105,6 +115,7 @@ impl Ordinal2D {
     pub const fn plus(self, rhs: Self) -> Self {
         // NOTE: only works so easily because the ordinals are modulo 8
         let n = (self as u8 + rhs as u8) & 7;
+
         // SAFETY: `n` is masked to within enum discriminant range
         unsafe { std::mem::transmute::<u8, Self>(n) }
     }
@@ -114,6 +125,7 @@ impl Ordinal2D {
     pub const fn minus(self, rhs: Self) -> Self {
         // NOTE: only works so easily because the ordinals are modulo 8
         let n = (self as u8).wrapping_sub(rhs as u8) & 7;
+
         // SAFETY: `n` is masked to within enum discriminant range
         unsafe { std::mem::transmute::<u8, Self>(n) }
     }
@@ -129,7 +141,8 @@ pub enum Flow {
     Both = 3,
 }
 
-pub struct BeltNode {
+#[derive(Debug)]
+pub struct ConnectorNode {
     pub position: FactoryVector3,
     pub rotation: Ordinal2D,
 }
@@ -149,6 +162,7 @@ pub enum BeltLevel {
 }
 
 /// Belts are 1 meter wide, minimum 1 meter long, and have 1 meter vertical clearance.
+#[derive(Debug)]
 pub struct Belt {
     /// Each level doubles speed
     pub level: BeltLevel,
@@ -165,7 +179,13 @@ impl Belt {
     }
 }
 
+#[derive(Debug)]
+pub enum Connector {
+
+}
+
 /// Reacts two solutions to produce a pair of results
+#[derive(Debug)]
 pub struct Reactor {
     pub position: FactoryVector3,
     pub rotation: Cardinal2D,
@@ -182,12 +202,30 @@ impl Reactor {
         }
     }
 
-    pub const fn inputs(&self) -> [FactoryVector3; 2] {
-        todo!()
+    pub const fn inputs(&self) -> [ConnectorNode; 2] {
+        [
+            ConnectorNode {
+                position: self.position.plus(FactoryVector3 { x: 0, y: 0, z: 0 }),
+                rotation: self.rotation.as_ordinal(),
+            },
+            ConnectorNode {
+                position: self.position.plus(FactoryVector3 { x: 2, y: 0, z: 0 }),
+                rotation: self.rotation.as_ordinal(),
+            },
+        ]
     }
 
-    pub const fn outputs(&self) -> [FactoryVector3; 2] {
-        todo!()
+    pub const fn outputs(&self) -> [ConnectorNode; 2] {
+        [
+            ConnectorNode {
+                position: self.position.plus(FactoryVector3 { x: 0, y: 0, z: 3 }),
+                rotation: self.rotation.as_ordinal(),
+            },
+            ConnectorNode {
+                position: self.position.plus(FactoryVector3 { x: 2, y: 0, z: 3 }),
+                rotation: self.rotation.as_ordinal(),
+            },
+        ]
     }
 
     // TODO: batch draws of same machine type
@@ -210,6 +248,7 @@ impl Reactor {
     }
 }
 
+#[derive(Debug)]
 pub enum Machine {
     Reactor(Reactor),
     // todo: more machines
@@ -237,6 +276,7 @@ impl Machine {
     }
 }
 
+#[derive(Debug)]
 pub struct Factory {
     pub origin: RailVector3,
     pub machines: Vec<Machine>,
