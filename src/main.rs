@@ -1,4 +1,9 @@
 #![allow(dead_code)]
+#![forbid(
+    clippy::missing_safety_doc,
+    clippy::undocumented_unsafe_blocks,
+    clippy::multiple_unsafe_ops_per_block,
+)]
 
 use raylib::prelude::*;
 
