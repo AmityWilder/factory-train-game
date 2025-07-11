@@ -4,6 +4,7 @@
     clippy::undocumented_unsafe_blocks,
     clippy::multiple_unsafe_ops_per_block,
 )]
+#![feature(assert_matches)]
 
 use raylib::prelude::*;
 
