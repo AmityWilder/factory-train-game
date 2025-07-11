@@ -9,7 +9,9 @@
 use raylib::prelude::*;
 
 mod coords;
-use crate::coords::*;
+use crate::{coords::*, ordinals::Cardinal2D};
+
+mod ordinals;
 
 mod player;
 use player::Player;
