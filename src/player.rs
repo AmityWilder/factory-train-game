@@ -56,7 +56,6 @@ impl Player {
 
             self.is_running = rl.is_key_down(KEY_LEFT_SHIFT);
 
-
             // Measured in meters per second
             let move_speed = if self.is_running { self.run_speed } else { self.walk_speed };
 
