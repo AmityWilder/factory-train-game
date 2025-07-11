@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::*;
 use raylib::prelude::Vector3;
 use fixed_point::Q32_32;
 
@@ -47,6 +47,7 @@ impl PlayerVector3 {
         }
     }
 
+    /// Add a vectors
     #[inline]
     pub const fn plus(self, rhs: Self) -> Self {
         Self {
@@ -56,12 +57,33 @@ impl PlayerVector3 {
         }
     }
 
+    /// Subtract a vector
     #[inline]
     pub const fn minus(self, rhs: Self) -> Self {
         Self {
             x: self.x.minus(rhs.x),
             y: self.y.minus(rhs.y),
             z: self.z.minus(rhs.z),
+        }
+    }
+
+    /// Multiply all components by a single value
+    #[inline]
+    pub const fn scale(self, rhs: PlayerCoord) -> Self {
+        Self {
+            x: self.x.multiply(rhs),
+            y: self.y.multiply(rhs),
+            z: self.z.multiply(rhs),
+        }
+    }
+
+    /// Multiply vectors component-wise
+    #[inline]
+    pub const fn multiply(self, rhs: Self) -> Self {
+        Self {
+            x: self.x.multiply(rhs.x),
+            y: self.y.multiply(rhs.y),
+            z: self.z.multiply(rhs.z),
         }
     }
 }
@@ -89,6 +111,13 @@ impl Add for PlayerVector3 {
     }
 }
 
+impl AddAssign for PlayerVector3 {
+    #[inline]
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.plus(rhs)
+    }
+}
+
 impl Sub for PlayerVector3 {
     type Output = Self;
 
@@ -98,17 +127,42 @@ impl Sub for PlayerVector3 {
     }
 }
 
-impl AddAssign for PlayerVector3 {
-    #[inline]
-    fn add_assign(&mut self, rhs: Self) {
-        *self = self.plus(rhs)
-    }
-}
-
 impl SubAssign for PlayerVector3 {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         *self = self.minus(rhs)
+    }
+}
+
+impl Mul<PlayerCoord> for PlayerVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: PlayerCoord) -> Self::Output {
+        self.scale(rhs)
+    }
+}
+
+impl MulAssign<PlayerCoord> for PlayerVector3 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: PlayerCoord) {
+        *self = self.scale(rhs)
+    }
+}
+
+impl Mul for PlayerVector3 {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.multiply(rhs)
+    }
+}
+
+impl MulAssign for PlayerVector3 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.multiply(rhs)
     }
 }
 
