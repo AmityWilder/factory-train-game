@@ -59,6 +59,11 @@ impl Q32_32 {
     pub const fn minus(self, rhs: Self) -> Self {
         Self(self.0 - rhs.0)
     }
+
+    #[inline]
+    pub const fn multiply(self, rhs: Self) -> Self {
+        Self(((self.0 as i128 * rhs.0 as i128) >> Self::DECIMAL_BITS) as i64)
+    }
 }
 
 impl From<f32> for Q32_32 {
@@ -72,6 +77,13 @@ impl From<Q32_32> for f32 {
     #[inline]
     fn from(value: Q32_32) -> Self {
         value.to_f32()
+    }
+}
+
+impl From<i32> for Q32_32 {
+    #[inline]
+    fn from(value: i32) -> Self {
+        Self::from_i32(value)
     }
 }
 
@@ -92,6 +104,31 @@ impl Sub for Q32_32 {
         self.minus(rhs)
     }
 }
+
+impl Mul for Q32_32 {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.multiply(rhs)
+    }
+}
+
+impl Mul<i64> for Q32_32 {
+    type Output = Self;
+
+    fn mul(self, rhs: i64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Mul<i32> for Q32_32 {
+    type Output = Self;
+
+    fn mul(self, rhs: i32) -> Self::Output {
+        Self(self.0 * rhs as i64)
+    }
+}
+
 
 impl AddAssign for Q32_32 {
     #[inline]
@@ -133,5 +170,11 @@ mod test_fixed_point {
     fn test_i32_sign() {
         let x = Q32_32::from_i32(-1);
         assert!(x.0 < 0, "negative value should produce negative fp");
+    }
+
+    #[test]
+    fn test_mul() {
+        assert_eq!(Q32_32::from_i32(-5) * Q32_32::from_i32(-5), Q32_32::from_i32(25));
+        assert_eq!(Q32_32::from_f32(-0.5) * Q32_32::from_f32(-0.5), Q32_32::from_f32(0.25));
     }
 }
