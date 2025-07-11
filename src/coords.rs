@@ -2,12 +2,14 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 use raylib::prelude::Vector3;
 use fixed_point::Q32_32;
 
+pub type PlayerCoord = Q32_32;
+
 /// Uses fixed-point coordinates (in meters)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct PlayerVector3 {
-    x: Q32_32,
-    y: Q32_32,
-    z: Q32_32,
+    pub x: PlayerCoord,
+    pub y: PlayerCoord,
+    pub z: PlayerCoord,
 }
 
 impl std::fmt::UpperHex for PlayerVector3 {
