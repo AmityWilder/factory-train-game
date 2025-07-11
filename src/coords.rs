@@ -19,6 +19,7 @@ impl std::fmt::UpperHex for PlayerVector3 {
 }
 
 impl PlayerVector3 {
+    /// Construct a position from integers
     pub const fn new(x: i32, y: i32, z: i32) -> Self {
         Self {
             x: Q32_32::from_i32(x),
