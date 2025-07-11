@@ -1,28 +1,27 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use raylib::prelude::Vector3;
-use fixed_point::Q48_16;
+use fixed_point::Q32_32;
 
 /// Uses fixed-point coordinates (in meters)
-///
-/// 48 bits for meter position, 16 bits for sub-meter position
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct PlayerVector3 {
-    x: Q48_16,
-    y: Q48_16,
-    z: Q48_16,
+    x: Q32_32,
+    y: Q32_32,
+    z: Q32_32,
+}
+
+impl std::fmt::UpperHex for PlayerVector3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({:X}, {:X}, {:X})", self.x, self.y, self.z)
+    }
 }
 
 impl PlayerVector3 {
-    const DECIMAL_MASK: i64 = 0xFFFF;
-    const DECIMAL_FACTOR: f32 = Self::DECIMAL_MASK as f32;
-    const DECIMAL_INV_FACTOR: f32 = Self::DECIMAL_FACTOR.recip();
-    const DECIMAL_BITS: u32 = Self::DECIMAL_MASK.count_ones();
-
     pub const fn new(x: i32, y: i32, z: i32) -> Self {
         Self {
-            x: Q48_16::from_i32(x),
-            y: Q48_16::from_i32(y),
-            z: Q48_16::from_i32(z),
+            x: Q32_32::from_i32(x),
+            y: Q32_32::from_i32(y),
+            z: Q32_32::from_i32(z),
         }
     }
 
@@ -30,9 +29,9 @@ impl PlayerVector3 {
     #[inline]
     pub fn from_vec3(value: Vector3) -> Self {
         Self {
-            x: Q48_16::from_f32(value.x),
-            y: Q48_16::from_f32(value.y),
-            z: Q48_16::from_f32(value.z),
+            x: Q32_32::from_f32(value.x),
+            y: Q32_32::from_f32(value.y),
+            z: Q32_32::from_f32(value.z),
         }
     }
 
@@ -130,7 +129,15 @@ impl FactoryVector3 {
     }
 }
 
-/// Uses global integer coordinates (in units of [`METERS_PER_RAIL`])
+/// Unsigned size (in meters)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct FactorySize3 {
+    pub width: u8,
+    pub height: u8,
+    pub length: u8,
+}
+
+/// Uses global integer coordinates
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct RailVector3 {
     pub x: i32,
@@ -142,9 +149,9 @@ impl RailVector3 {
     #[inline]
     pub const fn to_player(self) -> PlayerVector3 {
         PlayerVector3 {
-            x: Q48_16::from_i32(self.x),
-            y: Q48_16::from_i32(self.y),
-            z: Q48_16::from_i32(self.z),
+            x: Q32_32::from_i32(self.x),
+            y: Q32_32::from_i32(self.y),
+            z: Q32_32::from_i32(self.z),
         }
     }
 }

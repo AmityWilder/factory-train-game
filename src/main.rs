@@ -138,8 +138,12 @@ pub struct Reactor {
 }
 
 impl Reactor {
-    pub const fn clearance(&self) -> FactoryVector3 {
-        FactoryVector3 { x: 2, y: 1, z: 1 }
+    pub const fn clearance(&self) -> FactorySize3 {
+        FactorySize3 {
+            width: 2,
+            height: 2,
+            length: 3,
+        }
     }
 
     pub const fn inputs(&self) -> [FactoryVector3; 2] {
@@ -150,8 +154,17 @@ impl Reactor {
         todo!()
     }
 
-    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
-        // d.draw_cube(position, width, height, length, color);
+    // TODO: batch draws of same machine type
+    pub fn draw(&self, d: &mut impl RaylibDraw3D, _thread: &RaylibThread, player_pos: &PlayerVector3, factory_origin: &RailVector3) {
+        let size = self.clearance();
+        let position = self.position.to_rail(*factory_origin);
+        d.draw_cube(
+            (position.to_player() - *player_pos).to_vec3(),
+            size.width as f32,
+            size.height as f32,
+            size.length as f32,
+            Color::BLUE,
+        );
     }
 }
 
@@ -173,9 +186,9 @@ impl Machine {
         }
     }
 
-    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
+    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3, factory_origin: &RailVector3) {
         match self {
-            Machine::Reactor(reactor) => reactor.draw(d, thread, player_pos),
+            Machine::Reactor(reactor) => reactor.draw(d, thread, player_pos, factory_origin),
         }
     }
 }
@@ -188,7 +201,7 @@ pub struct Factory {
 impl Factory {
     pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
         for machine in &self.machines {
-            machine.draw(d, thread, player_pos);
+            machine.draw(d, thread, player_pos, &self.origin);
         }
     }
 }
@@ -198,6 +211,9 @@ pub struct Player {
 }
 
 fn main() {
+    use KeyboardKey::*;
+    // use MouseButton::*;
+
     let (mut rl, thread) = init()
         .title("factory game")
         .resizable()
@@ -206,20 +222,51 @@ fn main() {
     rl.set_target_fps(60);
     rl.maximize_window();
 
-    let mut machines: Vec<Machine> = Vec::new();
+    let font = rl.load_font_from_memory(&thread, ".ttf", include_bytes!("./FiraCode-Regular.ttf"), 20, None).unwrap();
+
     let mut player = Player {
         position: PlayerVector3::new(0, 0, 0),
     };
 
+    let factory: Factory = Factory {
+        origin: RailVector3 { x: 0, y: 0, z: -10 },
+        machines: vec![
+            Machine::Reactor(Reactor {
+                position: FactoryVector3 { x: 5, y: 0, z: -4 },
+                rotation: Cardinal2D::N,
+            }),
+            Machine::Reactor(Reactor {
+                position: FactoryVector3 { x: -5, y: 2, z: -4 },
+                rotation: Cardinal2D::N,
+            }),
+        ],
+    };
+
     while !rl.window_should_close() {
+        // player movement
+        {
+            let movement_forward = (rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32;
+            let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32;
+            player.position += PlayerVector3::from_vec3(Vector3::new(movement_right, 0.0, movement_forward) * 5.0 *  rl.get_frame_time());
+        }
+
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
         {
-            let camera = Camera3D::perspective(player.position.to_vec3(), Vector3::X, Vector3::Y, 45.0);
-            let mut d = d.begin_mode3D(camera);
-            d.draw_cube(Vector3::new(5.0, 0.0, 1.0), 1.0, 1.0, 1.0, Color::BLUE);
-            d.draw_cube(Vector3::new(7.0, 0.0, 1.0), 1.0, 1.0, 1.0, Color::ORANGE);
+            let mut d = d.begin_mode3D(Camera3D::perspective(Vector3::ZERO, Vector3::NEG_Z, Vector3::Y, 45.0));
+            factory.draw(&mut d, &thread, &player.position);
         }
+
+        d.draw_text_ex(
+            &font,
+            &format!("player position: {:X}\n                 {}", player.position, player.position.to_vec3()),
+            Vector2::new(500.0, 500.0),
+            20.0,
+            0.0,
+            Color::MAGENTA,
+        );
+
+        d.draw_fps(0, 0);
     }
 }
