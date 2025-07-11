@@ -129,14 +129,6 @@ impl FactoryVector3 {
     }
 }
 
-/// Unsigned size (in meters)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct FactorySize3 {
-    pub width: u8,
-    pub height: u8,
-    pub length: u8,
-}
-
 /// Uses global integer coordinates
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct RailVector3 {
