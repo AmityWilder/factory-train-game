@@ -1,3 +1,4 @@
+use std::assert_matches::assert_matches;
 use raylib::prelude::*;
 use crate::{coords::{PlayerCoord, PlayerVector3}, factory::Factory};
 
@@ -52,11 +53,9 @@ impl Player {
             if on_ground && rl.is_key_pressed(KEY_SPACE) {
                 self.velocity.y = PlayerCoord::from_i32(5);
             }
-            if rl.is_key_pressed(KEY_LEFT_SHIFT) {
-                self.is_running = !self.is_running;
-            } else if rl.is_key_pressed(KEY_LEFT_SHIFT) {
-                self.is_running = !self.is_running;
-            }
+
+            self.is_running = rl.is_key_down(KEY_LEFT_SHIFT);
+
 
             // Measured in meters per second
             let move_speed = if self.is_running { self.run_speed } else { self.walk_speed };
@@ -65,7 +64,7 @@ impl Player {
             let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32 * move_speed;
             self.velocity.x = movement_right.into();
             self.velocity.z = movement_forward.into();
-            assert!(self.velocity.z < 100);
+            assert_matches!(self.velocity.z.to_f32(), -100.0..100.0);
             self.position += self.velocity * PlayerCoord::from(dt);
         }
     }

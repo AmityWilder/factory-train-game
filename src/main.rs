@@ -80,5 +80,19 @@ fn main() {
             0.0,
             Color::MAGENTA,
         );
+        d.draw_text_ex(
+            &font,
+            &format!(
+                "player velocity: ({:X}, {:X}, {:X})",
+                player.velocity.x,
+                player.velocity.y,
+                player.velocity.z,
+            ),
+            Vector2::new(0.0, 40.0),
+            20.0,
+            0.0,
+            Color::MAGENTA,
+        );
+
     }
 }
