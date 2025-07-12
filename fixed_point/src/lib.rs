@@ -5,14 +5,18 @@ pub struct Q32_32(i64);
 
 impl std::fmt::UpperHex for Q32_32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:>08X}.{:>08X}", self.0.cast_unsigned() >> Self::DECIMAL_BITS, self.0 & Self::DECIMAL_MASK)
+        write!(f, "{:>08X}.{:>08X}",
+            self.0.cast_unsigned() >> Self::DECIMAL_BITS,
+            self.0.cast_unsigned() & Self::DECIMAL_MASK,
+        )
     }
 }
 
 impl Q32_32 {
     const DECIMAL_BITS: u32 = 32;
-    const DECIMAL_MASK: i64 = (1 << Self::DECIMAL_BITS) - 1;
-    const DECIMAL_FACTOR: f64 = Self::DECIMAL_MASK as f64;
+    const DECIMAL_FACTOR_INT: u64 = 1 << Self::DECIMAL_BITS;
+    const DECIMAL_MASK: u64 = Self::DECIMAL_FACTOR_INT - 1;
+    const DECIMAL_FACTOR: f64 = Self::DECIMAL_FACTOR_INT as f64;
     const DECIMAL_INV_FACTOR: f64 = Self::DECIMAL_FACTOR.recip();
 
     /// Gives the lowest and highest values `value` may become after conversion
@@ -27,14 +31,12 @@ impl Q32_32 {
 
     #[inline]
     pub fn from_f32(value: f32) -> Self {
-        let ipart = (value as i64) << Self::DECIMAL_BITS;
-        let fpart = ((value as f64).fract() * Self::DECIMAL_FACTOR) as i64;
-        Self(ipart | fpart)
+        Self((value as f64 * Self::DECIMAL_FACTOR) as i64)
     }
 
     #[inline]
     pub const fn to_f32(self) -> f32 {
-        ((self.0 >> Self::DECIMAL_BITS) as f64 + (self.0 & Self::DECIMAL_MASK) as f64 * Self::DECIMAL_INV_FACTOR) as f32
+        (self.0 as f64 * Self::DECIMAL_INV_FACTOR) as f32
     }
 
     #[inline]
@@ -232,10 +234,20 @@ mod test_fixed_point {
 
     #[test]
     fn test_f32_frac() {
-        const EXPECTED: f32 = 0.5;
-        const EXPECTED_RANGE: RangeInclusive<f32> = Q32_32::precision(EXPECTED);
-        let x = Q32_32::from_f32(EXPECTED).to_f32();
-        assert!(EXPECTED_RANGE.contains(&x), "should be symmetric\nexpect: {EXPECTED_RANGE:?}\nactual: {x}");
+        let expected: f32 = 0.5;
+        let expected_range: RangeInclusive<f32> = Q32_32::precision(expected);
+        let x = Q32_32::from_f32(expected).to_f32();
+        assert!(expected_range.contains(&x), "should be symmetric\nexpect: {expected_range:?}\nactual: {x}");
+
+        let expected: f32 = 2.2;
+        let expected_range: RangeInclusive<f32> = Q32_32::precision(expected);
+        let x = Q32_32::from_f32(expected).to_f32();
+        assert!(expected_range.contains(&x), "should be symmetric\nexpect: {expected_range:?}\nactual: {x}");
+
+        let expected: f32 = -2.2;
+        let expected_range: RangeInclusive<f32> = Q32_32::precision(expected);
+        let x = Q32_32::from_f32(expected).to_f32();
+        assert!(expected_range.contains(&x), "should be symmetric\nexpect: {expected_range:?}\nactual: {x}");
     }
 
     #[test]
