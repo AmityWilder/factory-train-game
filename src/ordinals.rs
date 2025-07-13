@@ -1,6 +1,7 @@
+use raylib::prelude::*;
+
 /// A 2D cardinal direction
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[repr(u8)]
 pub enum Cardinal2D {
     #[default]
     East  = 0,
@@ -17,6 +18,17 @@ impl Cardinal2D {
             Self::North => Ordinal2D::North,
             Self::West  => Ordinal2D::West,
             Self::South => Ordinal2D::South,
+        }
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
+    pub const fn as_3D(self) -> Cardinal3D {
+        match self {
+            Self::East  => Cardinal3D::East,
+            Self::North => Cardinal3D::North,
+            Self::West  => Cardinal3D::West,
+            Self::South => Cardinal3D::South,
         }
     }
 
@@ -49,7 +61,6 @@ impl std::ops::Sub for Cardinal2D {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[repr(u8)]
 pub enum Ordinal2D {
     #[default]
     East = 0,
@@ -84,6 +95,21 @@ impl Ordinal2D {
         unsafe { std::mem::transmute::<Self, Cardinal2D>(self) }
     }
 
+    #[allow(non_snake_case)]
+    #[inline]
+    pub const fn as_3D(self) -> Ordinal3D {
+        match self {
+            Self::East      => Ordinal3D::East,
+            Self::Northeast => Ordinal3D::Northeast,
+            Self::North     => Ordinal3D::North,
+            Self::Northwest => Ordinal3D::Northwest,
+            Self::West      => Ordinal3D::West,
+            Self::Southwest => Ordinal3D::Southwest,
+            Self::South     => Ordinal3D::South,
+            Self::Southeast => Ordinal3D::Southeast,
+        }
+    }
+
     /// Converts orientation to an angle in radians
     #[inline]
     pub const fn radians(self) -> f32 {
@@ -106,6 +132,31 @@ impl Ordinal2D {
         }
     }
 
+    /// The direction of the ordinal
+    #[inline]
+    pub const fn direction(self) -> Vector2 {
+        let (x, y, _) = self.cos_sin_tan();
+        Vector2::new(x, y)
+    }
+
+    /// The direction of the ordinal
+    #[inline]
+    pub const fn direction3(self) -> Vector3 {
+        let (x, z, _) = self.cos_sin_tan();
+        Vector3::new(x, 0.0, z)
+    }
+
+    #[inline]
+    pub const fn matrix(self) -> Matrix {
+        let (cos, sin, _) = self.cos_sin_tan();
+        Matrix {
+            m0:  cos, m4: 0.0,  m8: sin, m12: 0.0,
+            m1:  0.0, m5: 1.0,  m9: 0.0, m13: 0.0,
+            m2: -sin, m6: 0.0, m10: cos, m14: 0.0,
+            m3:  0.0, m7: 0.0, m11: 0.0, m15: 1.0,
+        }
+    }
+
     /// Add rhs to self
     #[inline]
     pub const fn plus(self, rhs: Self) -> Self {
@@ -124,5 +175,68 @@ impl Ordinal2D {
 
         // SAFETY: `n` is masked to within enum discriminant range
         unsafe { std::mem::transmute::<u8, Self>(n) }
+    }
+}
+
+/// A 3D cardinal direction
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Cardinal3D {
+    Down,
+    #[default]
+    East,
+    North,
+    West,
+    South,
+    Up,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Ordinal3D {
+    Down,
+    EastDown,
+    NorthDown,
+    WestDown,
+    SouthDown,
+    #[default]
+    East,
+    Northeast,
+    North,
+    Northwest,
+    West,
+    Southwest,
+    South,
+    Southeast,
+    EastUp,
+    NorthUp,
+    WestUp,
+    SouthUp,
+    Up,
+}
+
+impl Ordinal3D {
+    /// The direction of the ordinal
+    #[inline]
+    pub const fn direction(self) -> Vector3 {
+        use std::f32::consts::FRAC_1_SQRT_2;
+        match self {
+            Self::Down      => Vector3::new(           0.0, -          1.0,            0.0),
+            Self::EastDown  => Vector3::new( FRAC_1_SQRT_2, -FRAC_1_SQRT_2,            0.0),
+            Self::NorthDown => Vector3::new(           0.0, -FRAC_1_SQRT_2,  FRAC_1_SQRT_2),
+            Self::WestDown  => Vector3::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2,            0.0),
+            Self::SouthDown => Vector3::new(           0.0, -FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
+            Self::East      => Vector3::new(           1.0,            0.0,            0.0),
+            Self::Northeast => Vector3::new( FRAC_1_SQRT_2,            0.0,  FRAC_1_SQRT_2),
+            Self::North     => Vector3::new(           0.0,            0.0,            1.0),
+            Self::Northwest => Vector3::new(-FRAC_1_SQRT_2,            0.0,  FRAC_1_SQRT_2),
+            Self::West      => Vector3::new(-          1.0,            0.0,            0.0),
+            Self::Southwest => Vector3::new(-FRAC_1_SQRT_2,            0.0, -FRAC_1_SQRT_2),
+            Self::South     => Vector3::new(           0.0,            0.0, -          1.0),
+            Self::Southeast => Vector3::new( FRAC_1_SQRT_2,            0.0, -FRAC_1_SQRT_2),
+            Self::EastUp    => Vector3::new( FRAC_1_SQRT_2,  FRAC_1_SQRT_2,            0.0),
+            Self::NorthUp   => Vector3::new(           0.0,  FRAC_1_SQRT_2,  FRAC_1_SQRT_2),
+            Self::WestUp    => Vector3::new(-FRAC_1_SQRT_2,  FRAC_1_SQRT_2,            0.0),
+            Self::SouthUp   => Vector3::new(           0.0,  FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
+            Self::Up        => Vector3::new(           0.0,            1.0,            0.0),
+        }
     }
 }

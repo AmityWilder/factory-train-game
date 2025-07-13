@@ -1,4 +1,5 @@
 use std::num::NonZeroU8;
+use arrayvec::ArrayVec;
 use raylib::prelude::*;
 use crate::{coords::*, ordinals::*};
 
@@ -12,10 +13,79 @@ pub enum Flow {
     Both = 3,
 }
 
-#[derive(Debug)]
-pub struct ConnectorNode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct BeltNode {
     pub position: FactoryVector3,
     pub rotation: Ordinal2D,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct BeltInputNode(pub BeltNode);
+
+impl BeltInputNode {
+    pub fn draw(
+        &self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        player_pos: &PlayerVector3,
+        factory_origin: &RailVector3,
+    ) {
+        let player_rel_pos = self.0.position.to_player_relative(player_pos, factory_origin);
+        d.draw_cube(
+            player_rel_pos,
+            1.0,
+            1.0,
+            1.0,
+            Color::ORANGE,
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct BeltOutputNode(pub BeltNode);
+
+impl BeltOutputNode {
+    pub fn draw(
+        &self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        player_pos: &PlayerVector3,
+        factory_origin: &RailVector3,
+    ) {
+        let player_rel_pos = self.0.position.to_player_relative(player_pos, factory_origin);
+        d.draw_cube(
+            player_rel_pos,
+            1.0,
+            1.0,
+            1.0,
+            Color::GREEN,
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct PipeNode {
+    pub position: FactoryVector3,
+    pub rotation: Ordinal3D,
+}
+
+impl PipeNode {
+    pub fn draw(
+        &self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        player_pos: &PlayerVector3,
+        factory_origin: &RailVector3,
+    ) {
+        let player_rel_pos = self.position.to_player_relative(player_pos, factory_origin);
+        d.draw_cube(
+            player_rel_pos,
+            1.0,
+            1.0,
+            1.0,
+            Color::BLUE,
+        );
+    }
 }
 
 /// Each level doubles speed
@@ -37,10 +107,8 @@ pub enum BeltLevel {
 pub struct Belt {
     /// Each level doubles speed
     pub level: BeltLevel,
-    pub src_position: FactoryVector3,
-    pub src_rotation: Cardinal2D,
-    pub dst_position: FactoryVector3,
-    pub dst_rotation: Cardinal2D,
+    pub src: BeltOutputNode,
+    pub dst: BeltInputNode,
 }
 
 impl Belt {
@@ -51,8 +119,44 @@ impl Belt {
 }
 
 #[derive(Debug)]
-pub enum Connector {
+pub struct Pipe {
+    pub a: PipeNode,
+    pub b: PipeNode,
+}
 
+pub trait Machine {
+    /// The dimensions of the machine in meters.
+    /// `[length, width, height]`
+    #[must_use]
+    fn clearance(&self) -> [NonZeroU8; 3];
+
+    /// Render the machine
+    // TODO: batch draws of same machine type
+    fn draw(
+        &self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        player_pos: &PlayerVector3,
+        factory_origin: &RailVector3,
+    );
+
+    #[inline]
+    #[must_use]
+    fn belt_inputs(&self) -> ArrayVec<BeltInputNode, 8> {
+        ArrayVec::new()
+    }
+
+    #[inline]
+    #[must_use]
+    fn belt_outputs(&self) -> ArrayVec<BeltOutputNode, 8> {
+        ArrayVec::new()
+    }
+
+    #[inline]
+    #[must_use]
+    fn pipe_nodes(&self) -> ArrayVec<PipeNode, 8> {
+        ArrayVec::new()
+    }
 }
 
 /// Reacts two solutions to produce a pair of results
@@ -62,8 +166,9 @@ pub struct Reactor {
     pub rotation: Cardinal2D,
 }
 
-impl Reactor {
-    pub const fn clearance() -> [NonZeroU8; 3] {
+impl Machine for Reactor {
+    #[inline]
+    fn clearance(&self) -> [NonZeroU8; 3] {
         unsafe {
             [
                 NonZeroU8::new_unchecked(2),
@@ -73,90 +178,130 @@ impl Reactor {
         }
     }
 
-    pub const fn inputs(&self) -> [ConnectorNode; 2] {
-        [
-            ConnectorNode {
-                position: self.position.plus(FactoryVector3 { x: 0, y: 0, z: 0 }),
-                rotation: self.rotation.as_ordinal(),
-            },
-            ConnectorNode {
-                position: self.position.plus(FactoryVector3 { x: 2, y: 0, z: 0 }),
-                rotation: self.rotation.as_ordinal(),
-            },
-        ]
-    }
-
-    pub const fn outputs(&self) -> [ConnectorNode; 2] {
-        [
-            ConnectorNode {
-                position: self.position.plus(FactoryVector3 { x: 0, y: 0, z: 3 }),
-                rotation: self.rotation.as_ordinal(),
-            },
-            ConnectorNode {
-                position: self.position.plus(FactoryVector3 { x: 2, y: 0, z: 3 }),
-                rotation: self.rotation.as_ordinal(),
-            },
-        ]
-    }
-
-    // TODO: batch draws of same machine type
-    pub fn draw(
+    fn draw(
         &self,
         d: &mut impl RaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
     ) {
-        let [width, height, length] = Self::clearance().map(|x| x.get() as f32);
-        let position = self.position.to_rail(*factory_origin);
+        let [width, height, length] = self.clearance().map(|x| x.get() as f32);
+        let player_rel_pos = self.position.to_player_relative(player_pos, factory_origin);
         d.draw_cube(
-            (position.to_player() - *player_pos).to_vec3() + Vector3::new(width, height, length)*0.5,
+            player_rel_pos,
             width,
             height,
             length,
             Color::GRAY,
         );
     }
+
+    fn belt_inputs(&self) -> ArrayVec<BeltInputNode, 8> {
+        let mut arr = ArrayVec::new();
+        let [_width, _height, _length] = self.clearance();
+        arr.push(BeltInputNode(BeltNode {
+            position: self.position + FactoryVector3 {
+                x: 0,
+                y: 0,
+                z: 0,
+            },
+            rotation: self.rotation.as_ordinal(),
+        }));
+        arr
+    }
+
+    fn belt_outputs(&self) -> ArrayVec<BeltOutputNode, 8> {
+        let mut arr = ArrayVec::new();
+        let [_width, _height, length] = self.clearance();
+        arr.push(BeltOutputNode(BeltNode {
+            position: self.position + FactoryVector3 {
+                x: 0,
+                y: 0,
+                z: length.get().into(),
+            },
+            rotation: self.rotation.as_ordinal(),
+        }));
+        arr
+    }
+
+    fn pipe_nodes(&self) -> ArrayVec<PipeNode, 8> {
+        let mut arr = ArrayVec::new();
+        let [width, _height, length] = self.clearance();
+        arr.push(PipeNode {
+            position: self.position + FactoryVector3 {
+                x: width.get().into(),
+                y: 0,
+                z: 0,
+            },
+            rotation: self.rotation.as_ordinal().as_3D(),
+        });
+        arr.push(PipeNode {
+            position: self.position + FactoryVector3 {
+                x: width.get().into(),
+                y: 0,
+                z: length.get().into(),
+            },
+            rotation: self.rotation.as_ordinal().as_3D(),
+        });
+        arr
+    }
 }
 
 #[derive(Debug)]
-pub enum Machine {
-    Reactor(Reactor),
-    // todo: more machines
-}
-
-impl Machine {
-    /// The dimensions of the machine in meters.
-    /// `[length, width, height]`
-    pub const fn clearance(&self) -> [NonZeroU8; 3] {
-        match self {
-            Self::Reactor(_) => Reactor::clearance(),
-        }
-    }
-
-    pub fn draw(
-        &self,
-        d: &mut impl RaylibDraw3D,
-        thread: &RaylibThread,
-        player_pos: &PlayerVector3,
-        factory_origin: &RailVector3,
-    ) {
-        match self {
-            Machine::Reactor(reactor) => reactor.draw(d, thread, player_pos, factory_origin),
-        }
-    }
+pub struct Resources {
+    pub reactor_mesh: Mesh,
+    pub reactor_material: Material,
+    /// NOT kept up to date--ONLY for reusing the allocation.
+    reactor_transforms: Vec<Matrix>,
 }
 
 #[derive(Debug)]
 pub struct Factory {
     pub origin: RailVector3,
-    pub machines: Vec<Machine>,
+    pub reactors: Vec<Reactor>,
 }
 
 impl Factory {
-    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, player_pos: &PlayerVector3) {
-        for machine in &self.machines {
-            machine.draw(d, thread, player_pos, &self.origin);
+    pub fn draw(&self, d: &mut impl RaylibDraw3D, thread: &RaylibThread, resources: &mut Resources, player_pos: &PlayerVector3) {
+        let origin = &self.origin;
+
+        resources.reactor_transforms.clear();
+        resources.reactor_transforms.extend(
+            self.reactors.iter()
+                .map(|reactor| {
+                    let Vector3 { x, y, z } = reactor.position.to_player_relative(player_pos, origin);
+                    let (cos, sin, _) = reactor.rotation.as_ordinal().cos_sin_tan();
+                    Matrix {
+                        m0:  cos, m4: 0.0,  m8: sin, m12:   x,
+                        m1:  0.0, m5: 1.0,  m9: 0.0, m13:   y,
+                        m2: -sin, m6: 0.0, m10: cos, m14:   z,
+                        m3:  0.0, m7: 0.0, m11: 0.0, m15: 1.0,
+                    }
+                })
+        );
+        d.draw_mesh_instanced(&resources.reactor_mesh, resources.reactor_material.make_weak(), &resources.reactor_transforms);
+
+        // todo: other machines
+
+        for belt_input in
+            self.reactors.iter().flat_map(|reactor| reactor.belt_inputs())
+            // todo: other machines
+        {
+            belt_input.draw(d, thread, player_pos, origin);
+        }
+
+        for belt_output in
+            self.reactors.iter().flat_map(|reactor| reactor.belt_outputs())
+            // todo: other machines
+        {
+            belt_output.draw(d, thread, player_pos, origin);
+        }
+
+        for pipe_node in
+            self.reactors.iter().flat_map(|reactor| reactor.pipe_nodes())
+            // todo: other machines
+        {
+            pipe_node.draw(d, thread, player_pos, origin);
         }
     }
 }

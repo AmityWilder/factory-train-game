@@ -185,6 +185,10 @@ impl FactoryVector3 {
         }
     }
 
+    pub const fn to_player_relative(self, player_pos: &PlayerVector3, origin: &RailVector3) -> Vector3 {
+        (self.to_rail(*origin).to_player().minus(*player_pos)).to_vec3()
+    }
+
     #[inline]
     pub const fn plus(self, rhs: Self) -> Self {
         Self {
