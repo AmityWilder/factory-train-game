@@ -16,6 +16,8 @@ mod ordinals;
 mod player;
 use player::Player;
 
+mod chem;
+
 mod factory;
 use factory::*;
 

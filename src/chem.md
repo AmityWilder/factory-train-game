@@ -99,3 +99,5 @@ Ion Summary: When cations pair up with anions to form neutral ionic compounds, t
 - $\sf \textsf{\textbf{H}}Br$ = hydrobromic acid
 - $\sf \textsf{\textbf{H}}_2SO_4$ = sulfuric acid
 - $\sf \textsf{\textbf{H}}NO_3$ = nitric acid
+
+More bonds require more energy to break. Shorter bonds require more energy to break (i.e. smaller atoms make stronger bonds).
