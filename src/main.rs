@@ -34,7 +34,7 @@ fn main() {
     rl.set_target_fps(60);
     rl.maximize_window();
 
-    let font = rl.load_font_from_memory(&thread, ".ttf", include_bytes!("./FiraCode-Regular.ttf"), 20, None).unwrap();
+    let font = rl.load_font_from_memory(&thread, ".ttf", include_bytes!("../assets/FiraCode-Regular.ttf"), 20, None).unwrap();
 
     let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::new(0, 0, 0));
 
