@@ -250,9 +250,19 @@ impl Machine for Reactor {
 #[derive(Debug)]
 pub struct Resources {
     pub reactor_mesh: Mesh,
-    pub reactor_material: Material,
+    pub reactor_material: WeakMaterial,
     /// NOT kept up to date--ONLY for reusing the allocation.
     reactor_transforms: Vec<Matrix>,
+}
+
+impl Resources {
+    pub fn new(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
+        Self {
+            reactor_mesh: Mesh::gen_mesh_cube(thread, 1.0, 1.0, 1.0),
+            reactor_material: rl.load_material_default(thread),
+            reactor_transforms: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -279,7 +289,7 @@ impl Factory {
                     }
                 })
         );
-        d.draw_mesh_instanced(&resources.reactor_mesh, resources.reactor_material.make_weak(), &resources.reactor_transforms);
+        d.draw_mesh_instanced(&resources.reactor_mesh, resources.reactor_material.clone(), &resources.reactor_transforms);
 
         // todo: other machines
 

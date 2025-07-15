@@ -34,22 +34,15 @@ fn main() {
     rl.set_target_fps(60);
     rl.maximize_window();
 
+    let mut resources = Resources::new(&mut rl, &thread);
+
     let font = rl.load_font_from_memory(&thread, ".ttf", include_bytes!("../assets/FiraCode-Regular.ttf"), 20, None).unwrap();
 
     let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::new(0, 0, 0));
 
     let mut factory: Factory = Factory {
-        origin: RailVector3 { x: 0, y: 0, z: -10 },
-        machines: vec![
-            Machine::Reactor(Reactor {
-                position: FactoryVector3 { x: 5, y: 0, z: -4 },
-                rotation: Cardinal2D::North,
-            }),
-            Machine::Reactor(Reactor {
-                position: FactoryVector3 { x: -5, y: 2, z: -4 },
-                rotation: Cardinal2D::North,
-            }),
-        ],
+        origin: RailVector3 { x: 0, y: 0, z: 0 },
+        reactors: Vec::new(),
     };
 
     while !rl.window_should_close() {
@@ -65,7 +58,7 @@ fn main() {
                 Vector3::new(0.0, 1.0, 0.0),
                 45.0,
             ));
-            factory.draw(&mut d, &thread, &player.position);
+            factory.draw(&mut d, &thread, &mut resources, &player.position);
         }
 
         d.draw_fps(0, 0);
@@ -83,4 +76,6 @@ fn main() {
             Color::MAGENTA,
         );
     }
+
+    unsafe { rl.unload_material(&thread, resources.reactor_material) };
 }
