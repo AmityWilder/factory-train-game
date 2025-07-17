@@ -8,7 +8,7 @@
     clippy::multiple_unsafe_ops_per_block
 )]
 #![warn(clippy::unnecessary_safety_doc, clippy::unnecessary_safety_comment)]
-#![feature(const_trait_impl, new_range_api)]
+#![feature(const_trait_impl, new_range_api, unchecked_shifts)]
 
 use raylib::prelude::*;
 

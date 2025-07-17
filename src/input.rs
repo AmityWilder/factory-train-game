@@ -485,9 +485,9 @@ impl FromStr for Bindings {
 impl Default for Bindings {
     fn default() -> Self {
         Self {
-            event: [const { EventSource::Constant(false) }; _],
-            axis: [const { AxisSource::Constant(0.0) }; _],
-            vector: [const { VectorSource::Constant(Vector2::ZERO) }; _],
+            event: [const { EventSource::Constant(false) }; 4],
+            axis: [const { AxisSource::Constant(0.0) }; 0],
+            vector: [const { VectorSource::Constant(Vector2::ZERO) }; 2],
         }
     }
 }
