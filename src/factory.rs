@@ -153,7 +153,7 @@ pub trait Machine: Clearance {
     }
 }
 
-/// Reacts two solutions to produce a pair of results
+/// Reacts two solutions
 #[derive(Debug)]
 pub struct Reactor {
     pub position: FactoryVector3,

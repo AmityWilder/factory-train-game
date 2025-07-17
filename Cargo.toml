@@ -10,4 +10,3 @@ edition = "2024"
 raylib = { git = "https://github.com/raylib-rs/raylib-rs.git", branch = "unstable", version = "5.7.0" }
 fixed_point = { path = "fixed_point" }
 arrayvec = "0.7.6"
-subenum = "1.1.2"

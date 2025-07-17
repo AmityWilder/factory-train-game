@@ -1,11 +1,11 @@
-use std::ops::*;
-use raylib::prelude::Vector3;
 use fixed_point::Q32_32;
+use raylib::prelude::Vector3;
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 pub type PlayerCoord = Q32_32;
 
 /// Uses fixed-point coordinates (in meters)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct PlayerVector3 {
     pub x: PlayerCoord,
     pub y: PlayerCoord,
@@ -115,7 +115,7 @@ impl Add for PlayerVector3 {
 impl AddAssign for PlayerVector3 {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.plus(rhs)
+        *self = self.plus(rhs);
     }
 }
 
@@ -131,7 +131,7 @@ impl Sub for PlayerVector3 {
 impl SubAssign for PlayerVector3 {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.minus(rhs)
+        *self = self.minus(rhs);
     }
 }
 
@@ -147,7 +147,7 @@ impl Mul<PlayerCoord> for PlayerVector3 {
 impl MulAssign<PlayerCoord> for PlayerVector3 {
     #[inline]
     fn mul_assign(&mut self, rhs: PlayerCoord) {
-        *self = self.scale(rhs)
+        *self = self.scale(rhs);
     }
 }
 
@@ -163,12 +163,12 @@ impl Mul for PlayerVector3 {
 impl MulAssign for PlayerVector3 {
     #[inline]
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.multiply(rhs)
+        *self = self.multiply(rhs);
     }
 }
 
 /// Uses integer coordinates relative to factory origin (in meters)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct FactoryVector3 {
     pub x: i16,
     pub y: i16,
@@ -185,7 +185,12 @@ impl FactoryVector3 {
         }
     }
 
-    pub const fn to_player_relative(self, player_pos: &PlayerVector3, origin: &RailVector3) -> Vector3 {
+    #[inline]
+    pub const fn to_player_relative(
+        self,
+        player_pos: &PlayerVector3,
+        origin: &RailVector3,
+    ) -> Vector3 {
         (self.to_rail(*origin).to_player().minus(*player_pos)).to_vec3()
     }
 
@@ -238,7 +243,7 @@ impl Add for FactoryVector3 {
 impl AddAssign for FactoryVector3 {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.plus(rhs)
+        *self = self.plus(rhs);
     }
 }
 
@@ -254,7 +259,7 @@ impl Sub for FactoryVector3 {
 impl SubAssign for FactoryVector3 {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.minus(rhs)
+        *self = self.minus(rhs);
     }
 }
 
@@ -270,7 +275,7 @@ impl Mul<i16> for FactoryVector3 {
 impl MulAssign<i16> for FactoryVector3 {
     #[inline]
     fn mul_assign(&mut self, rhs: i16) {
-        *self = self.scale(rhs)
+        *self = self.scale(rhs);
     }
 }
 
@@ -286,12 +291,12 @@ impl Mul for FactoryVector3 {
 impl MulAssign for FactoryVector3 {
     #[inline]
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.multiply(rhs)
+        *self = self.multiply(rhs);
     }
 }
 
 /// Uses global integer coordinates
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RailVector3 {
     pub x: i32,
     pub y: i32,
@@ -364,7 +369,7 @@ impl Add for RailVector3 {
 impl AddAssign for RailVector3 {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.plus(rhs)
+        *self = self.plus(rhs);
     }
 }
 
@@ -380,7 +385,7 @@ impl Sub for RailVector3 {
 impl SubAssign for RailVector3 {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.minus(rhs)
+        *self = self.minus(rhs);
     }
 }
 
@@ -396,7 +401,7 @@ impl Mul<i32> for RailVector3 {
 impl MulAssign<i32> for RailVector3 {
     #[inline]
     fn mul_assign(&mut self, rhs: i32) {
-        *self = self.scale(rhs)
+        *self = self.scale(rhs);
     }
 }
 
@@ -412,6 +417,6 @@ impl Mul for RailVector3 {
 impl MulAssign for RailVector3 {
     #[inline]
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.multiply(rhs)
+        *self = self.multiply(rhs);
     }
 }

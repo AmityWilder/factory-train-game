@@ -1,28 +1,30 @@
 use arrayvec::ArrayVec;
 use std::num::NonZeroU8;
-use subenum::subenum;
 
-pub const PROTON_MASS: f64 = 1.6726219259552e-27;
-pub const NEUTRON_MASS: f64 = 1.6749275005685e-27;
-pub const ELECTRON_MASS: f64 = 9.109383713928e-31;
+pub const PROTON_MASS: f64 = 1.672_621_925_955_2e-27;
+pub const NEUTRON_MASS: f64 = 1.674_927_500_568_5e-27;
+pub const ELECTRON_MASS: f64 = 9.109_383_713_928e-31;
 
 // S: Spherical
 // P: Dumbell
 // D: Clover
 // F: 8 knotted balloons
 
-#[subenum(Metal, NobleGas, MainGroup, NonMetal, SBlock, PBlock, DBlock, FBlock)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[rustfmt::skip]
 pub enum Element {
-    H = 1,                                                                                                                       #[subenum(NobleGas)] He,
-    Li, Be,                                                             #[subenum(NonMetal)] B,  #[subenum(NonMetal)] C,  #[subenum(NonMetal)] N,  #[subenum(NonMetal)] O,  #[subenum(NonMetal)] F,  #[subenum(NobleGas)] Ne,
-    Na, Mg,                                                             #[subenum(NonMetal)] Al, #[subenum(NonMetal)] Si, #[subenum(NonMetal)] P,  #[subenum(NonMetal)] S,  #[subenum(NonMetal)] Cl, #[subenum(NobleGas)] Ar,
-    K,  Ca, Sc,                     #[subenum(Metal)] Ti, #[subenum(Metal)] V,  #[subenum(Metal)] Cr, #[subenum(Metal)] Mn, #[subenum(Metal)] Fe, #[subenum(Metal)] Co, #[subenum(Metal)] Ni, #[subenum(Metal)] Cu, #[subenum(Metal)] Zn, #[subenum(Metal)] Ga, Ge, As, Se, Br, #[subenum(NobleGas)] Kr,
-    Rb, Sr, Y,                      #[subenum(Metal)] Zr, #[subenum(Metal)] Nb, #[subenum(Metal)] Mo, #[subenum(Metal)] Tc, #[subenum(Metal)] Ru, #[subenum(Metal)] Rh, #[subenum(Metal)] Pd, #[subenum(Metal)] Ag, #[subenum(Metal)] Cd, #[subenum(Metal)] In, #[subenum(Metal)] Sn, Sb, Te, I,  #[subenum(NobleGas)] Xe,
-    Cs, Ba, La, Ce, Pr, #[subenum(Metal)] Nd, #[subenum(Metal)] Pm, #[subenum(Metal)] Sm, #[subenum(Metal)] Eu, #[subenum(Metal)] Gd, #[subenum(Metal)] Tb, #[subenum(Metal)] Dy, #[subenum(Metal)] Ho, #[subenum(Metal)] Er, #[subenum(Metal)] Tm, #[subenum(Metal)] Yb, #[subenum(Metal)] Lu, #[subenum(Metal)] Hf, #[subenum(Metal)] Ta, #[subenum(Metal)] W,  #[subenum(Metal)] Re, #[subenum(Metal)] Os, #[subenum(Metal)] Ir, #[subenum(Metal)] Pt, #[subenum(Metal)] Au, #[subenum(Metal)] Hg, #[subenum(Metal)] Tl, #[subenum(Metal)] Pb, #[subenum(Metal)] Bi, #[subenum(Metal)] Po, #[subenum(Metal)] At, #[subenum(NobleGas)] Rn,
-    Fr, Ra, Ac, Th, Pa, #[subenum(Metal)] U,  #[subenum(Metal)] Np, #[subenum(Metal)] Pu, #[subenum(Metal)] Am, #[subenum(Metal)] Cm, #[subenum(Metal)] Bk, #[subenum(Metal)] Cf, #[subenum(Metal)] Es, #[subenum(Metal)] Fm, #[subenum(Metal)] Md, #[subenum(Metal)] No, #[subenum(Metal)] Lr, #[subenum(Metal)] Rf, #[subenum(Metal)] Db, #[subenum(Metal)] Sg, #[subenum(Metal)] Bh, #[subenum(Metal)] Hs, #[subenum(Metal)] Mt, #[subenum(Metal)] Ds, #[subenum(Metal)] Rg, #[subenum(Metal)] Cn, #[subenum(Metal)] Nh, #[subenum(Metal)] Fl, #[subenum(Metal)] Mc, #[subenum(Metal)] Lv, #[subenum(Metal)] Ts, #[subenum(NobleGas)] Og,
+    H = 1,                                                                                                                      He,
+    Li, Be,                                                                                                 B,  C,  N,  O,  F,  Ne,
+    Na, Mg,                                                                                                 Al, Si, P,  S,  Cl, Ar,
+    K,  Ca, Sc,                                                         Ti, V,  Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge, As, Se, Br, Kr,
+    Rb, Sr, Y,                                                          Zr, Nb, Mo, Tc, Ru, Rh, Pd, Ag, Cd, In, Sn, Sb, Te, I,  Xe,
+    Cs, Ba, La, Ce, Pr, Nd, Pm, Sm, Eu, Gd, Tb, Dy, Ho, Er, Tm, Yb, Lu, Hf, Ta, W,  Re, Os, Ir, Pt, Au, Hg, Tl, Pb, Bi, Po, At, Rn,
+    Fr, Ra, Ac, Th, Pa, U,  Np, Pu, Am, Cm, Bk, Cf, Es, Fm, Md, No, Lr, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, Cn, Nh, Fl, Mc, Lv, Ts, Og,
 }
+#[allow(
+    clippy::enum_glob_use,
+    reason = "I am importing all of them and don't want to repeat all 118 names. They don't shadow anything else here."
+)]
 use Element::*;
 
 impl std::fmt::Display for Element {
@@ -160,10 +162,12 @@ impl Element {
         &ELEMENT_INFO[unsafe { self.protons().get().unchecked_sub(1) } as usize]
     }
 
+    /// The symbol used to represent this element
     pub const fn symbol(self) -> &'static str {
         self.info().0
     }
 
+    /// The common name of this element
     pub const fn name(self) -> &'static str {
         self.info().1
     }
@@ -179,162 +183,12 @@ impl Element {
 
     /// Atoms that always form pairs with themselves when given the chance
     pub const fn is_diatomic(self) -> bool {
-        matches!(self, |H| N | O | F | Cl | Br | I)
-    }
-
-    /// Elements in the leftmost pair of columns on the periodic table
-    pub const fn is_main_group(self) -> bool {
-        matches!(self, |H| Li
-            | Be
-            | Na
-            | Mg
-            | K
-            | Ca
-            | Rb
-            | Sr
-            | Cs
-            | Ba
-            | Fr
-            | Ra)
-    }
-
-    /// Elements that form cations
-    pub const fn is_metal(self) -> bool {
-        matches!(self, |Li| Be
-            | Na
-            | Mg
-            | Al
-            | K
-            | Ca
-            | Sc
-            | Ti
-            | V
-            | Cr
-            | Mn
-            | Fe
-            | Co
-            | Ni
-            | Cu
-            | Zn
-            | Ga
-            | Rb
-            | Sr
-            | Y
-            | Zr
-            | Nb
-            | Mo
-            | Tc
-            | Ru
-            | Rh
-            | Pd
-            | Ag
-            | Cd
-            | In
-            | Sn
-            | Cs
-            | Ba
-            | La
-            | Ce
-            | Pr
-            | Nd
-            | Pm
-            | Sm
-            | Eu
-            | Gd
-            | Tb
-            | Dy
-            | Ho
-            | Er
-            | Tm
-            | Yb
-            | Lu
-            | Hf
-            | Ta
-            | W
-            | Re
-            | Os
-            | Ir
-            | Pt
-            | Au
-            | Hg
-            | Tl
-            | Pb
-            | Bi
-            | Po
-            | Fr
-            | Ra
-            | Ac
-            | Th
-            | Pa
-            | U
-            | Np
-            | Pu
-            | Am
-            | Cm
-            | Bk
-            | Cf
-            | Es
-            | Fm
-            | Md
-            | No
-            | Lr
-            | Rf
-            | Db
-            | Sg
-            | Bh
-            | Hs
-            | Mt
-            | Ds
-            | Rg
-            | Cn
-            | Nh
-            | Fl
-            | Mc
-            | Lv)
-    }
-
-    /// Elements capable of multiple charged states
-    pub const fn is_transition_metal(self) -> bool {
-        matches!(self, |Ti| V
-            | Cr
-            | Mn
-            | Fe
-            | Co
-            | Ni
-            | Cu
-            | Zn
-            | Zr
-            | Nb
-            | Mo
-            | Tc
-            | Ru
-            | Rh
-            | Pd
-            | Ag
-            | Cd
-            | Hf
-            | Ta
-            | W
-            | Re
-            | Os
-            | Ir
-            | Pt
-            | Au
-            | Hg
-            | Rf
-            | Db
-            | Sg
-            | Bh
-            | Hs
-            | Mt
-            | Ds
-            | Rg
-            | Cn)
+        matches!(self, H | N | O | F | Cl | Br | I)
     }
 
     /// Elements that don't want to form compounds
     pub const fn is_noble_gas(self) -> bool {
-        matches!(self, |He| Ne | Ar | Kr | Xe | Rn | Og)
+        matches!(self, He | Ne | Ar | Kr | Xe | Rn | Og)
     }
 }
 
@@ -359,7 +213,8 @@ impl Atom {
     /// The name of the isotope
     ///
     /// Returns [`None`] if the isotope has no meaningful name.
-    /// Consider calling [`Self::systematic_name`].
+    ///
+    /// See also: [`Self::systematic_name`].
     pub const fn name(self) -> Option<&'static str> {
         match self {
             Self {
@@ -371,7 +226,8 @@ impl Atom {
         }
     }
 
-    pub fn systematic_name(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
+    /// Generate the name of an atom using numbers.
+    pub fn systematic_name(self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
         write!(f, "{}-{}", self.element.name(), self.neutrons)
     }
 

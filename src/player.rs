@@ -1,5 +1,5 @@
-use raylib::prelude::*;
 use crate::{coords::PlayerVector3, factory::Factory};
+use raylib::prelude::*;
 
 pub struct Player {
     pub position: PlayerVector3,
@@ -28,7 +28,12 @@ impl Player {
     }
 
     /// Tick the player (handle movement and actions)
-    pub fn update(&mut self, rl: &mut RaylibHandle, _thread: &RaylibThread, _current_factory: &mut Factory) {
+    pub fn update(
+        &mut self,
+        rl: &mut RaylibHandle,
+        _thread: &RaylibThread,
+        _current_factory: &mut Factory,
+    ) {
         #[allow(unused_imports)]
         use {KeyboardKey::*, MouseButton::*};
 
@@ -38,16 +43,21 @@ impl Player {
         {
             if rl.is_key_pressed(KEY_LEFT_SHIFT) {
                 self.is_running = !self.is_running;
-            } else if rl.is_key_pressed(KEY_LEFT_SHIFT) {
-                self.is_running = !self.is_running;
             }
 
             // Measured in meters per second
-            let move_speed = if self.is_running { self.run_speed } else { self.walk_speed };
+            let move_speed = if self.is_running {
+                self.run_speed
+            } else {
+                self.walk_speed
+            };
 
-            let movement_forward = (rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32;
+            let movement_forward =
+                (rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32;
             let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32;
-            self.velocity = PlayerVector3::from_vec3(Vector3::new(movement_right, 0.0, movement_forward) * move_speed * dt);
+            self.velocity = PlayerVector3::from_vec3(
+                Vector3::new(movement_right, 0.0, movement_forward) * move_speed * dt,
+            );
             self.position += self.velocity;
         }
     }
