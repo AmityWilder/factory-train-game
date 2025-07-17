@@ -1,5 +1,5 @@
 use raylib::prelude::*;
-use std::{cell::Cell, mem::MaybeUninit, str::FromStr};
+use std::{cell::Cell, str::FromStr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyState {

@@ -1,4 +1,8 @@
-use crate::{coords::PlayerVector3, factory::Factory};
+use crate::{
+    coords::PlayerVector3,
+    factory::Factory,
+    input::{EventInput, Inputs, VectorInput},
+};
 use raylib::prelude::*;
 
 pub struct Player {
@@ -12,6 +16,10 @@ pub struct Player {
 impl Player {
     /// Camera height in meters
     #[inline]
+    #[allow(
+        clippy::unused_self,
+        reason = "Should be able to use this method even if height becomes a variable"
+    )]
     pub const fn height(&self) -> f32 {
         1.6
     }
@@ -32,31 +40,30 @@ impl Player {
         &mut self,
         rl: &mut RaylibHandle,
         _thread: &RaylibThread,
+        inputs: &Inputs,
         _current_factory: &mut Factory,
     ) {
-        #[allow(unused_imports)]
+        #[allow(
+            unused_imports,
+            clippy::enum_glob_use,
+            reason = "Variants are prefixed"
+        )]
         use {KeyboardKey::*, MouseButton::*};
 
         let dt = rl.get_frame_time();
 
         // Movement
         {
-            if rl.is_key_pressed(KEY_LEFT_SHIFT) {
-                self.is_running = !self.is_running;
-            }
-
             // Measured in meters per second
-            let move_speed = if self.is_running {
+            let move_speed = if inputs[EventInput::Sprint] {
                 self.run_speed
             } else {
                 self.walk_speed
             };
 
-            let movement_forward =
-                (rl.is_key_down(KEY_S) as i8 - rl.is_key_down(KEY_W) as i8) as f32;
-            let movement_right = (rl.is_key_down(KEY_D) as i8 - rl.is_key_down(KEY_A) as i8) as f32;
+            let movement = inputs[VectorInput::Walk];
             self.velocity = PlayerVector3::from_vec3(
-                Vector3::new(movement_right, 0.0, movement_forward) * move_speed * dt,
+                Vector3::new(movement.x, 0.0, -movement.y) * move_speed * dt,
             );
             self.position += self.velocity;
         }

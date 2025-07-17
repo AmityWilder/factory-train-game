@@ -13,7 +13,10 @@
 use raylib::prelude::*;
 
 mod coords;
-use crate::coords::*;
+use crate::{
+    coords::{PlayerVector3, RailVector3},
+    input::Bindings,
+};
 
 mod ordinals;
 
@@ -25,7 +28,7 @@ use player::Player;
 mod chem;
 
 mod factory;
-use factory::*;
+use factory::{Factory, Resources};
 
 fn main() {
     #[allow(unused_imports)]
@@ -48,6 +51,8 @@ fn main() {
         )
         .unwrap();
 
+    let bindings = Bindings::default_binds();
+
     let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::new(0, 0, 0));
 
     let mut factory: Factory = Factory {
@@ -56,7 +61,8 @@ fn main() {
     };
 
     while !rl.window_should_close() {
-        player.update(&mut rl, &thread, &mut factory);
+        let inputs = bindings.get(&rl);
+        player.update(&mut rl, &thread, &inputs, &mut factory);
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);

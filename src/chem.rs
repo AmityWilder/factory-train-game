@@ -257,7 +257,7 @@ mod tests {
             (actual - expect).abs() <= EPSILON,
             "mass of hydrogen\n expect: {expect}kg\n actual: {actual}kg"
         );
-        let expect = 3.344476425e-27;
+        let expect = 3.344_476_425e-27;
         let actual = Atom {
             element: H,
             neutrons: 1,
