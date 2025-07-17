@@ -15,13 +15,15 @@ pub const ELECTRON_MASS: f64 = 9.109_383_713_928e-31;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[rustfmt::skip]
 pub enum Element {
-    H = 1,                                                                                                                      He,
-    Li, Be,                                                                                                 B,  C,  N,  O,  F,  Ne,
-    Na, Mg,                                                                                                 Al, Si, P,  S,  Cl, Ar,
-    K,  Ca, Sc,                                                         Ti, V,  Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge, As, Se, Br, Kr,
-    Rb, Sr, Y,                                                          Zr, Nb, Mo, Tc, Ru, Rh, Pd, Ag, Cd, In, Sn, Sb, Te, I,  Xe,
-    Cs, Ba, La, Ce, Pr, Nd, Pm, Sm, Eu, Gd, Tb, Dy, Ho, Er, Tm, Yb, Lu, Hf, Ta, W,  Re, Os, Ir, Pt, Au, Hg, Tl, Pb, Bi, Po, At, Rn,
-    Fr, Ra, Ac, Th, Pa, U,  Np, Pu, Am, Cm, Bk, Cf, Es, Fm, Md, No, Lr, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, Cn, Nh, Fl, Mc, Lv, Ts, Og,
+// |   S   |                           F                           |                   D                   |           P           |
+// |-------|-------------------------------------------------------|---------------------------------------|-----------------------|
+    H = 1,                                                                                                                      He, // n=1
+    Li, Be,                                                                                                 B,  C,  N,  O,  F,  Ne, // n=2
+    Na, Mg,                                                                                                 Al, Si, P,  S,  Cl, Ar, // n=3
+    K,  Ca,                                                         Sc, Ti, V,  Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge, As, Se, Br, Kr, // n=4
+    Rb, Sr,                                                         Y,  Zr, Nb, Mo, Tc, Ru, Rh, Pd, Ag, Cd, In, Sn, Sb, Te, I,  Xe, // n=5
+    Cs, Ba, La, Ce, Pr, Nd, Pm, Sm, Eu, Gd, Tb, Dy, Ho, Er, Tm, Yb, Lu, Hf, Ta, W,  Re, Os, Ir, Pt, Au, Hg, Tl, Pb, Bi, Po, At, Rn, // n=6
+    Fr, Ra, Ac, Th, Pa, U,  Np, Pu, Am, Cm, Bk, Cf, Es, Fm, Md, No, Lr, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, Cn, Nh, Fl, Mc, Lv, Ts, Og, // n=7
 }
 #[allow(
     clippy::enum_glob_use,
@@ -362,16 +364,35 @@ impl ElectronConfig {
         }
     }
 
-    pub const fn last_noble(self) -> NobleGas {
-        todo!()
-    }
-
     pub const fn sublevels(self) -> &'static [SubLevel] {
         ORBITALS.split_at(self.levels as usize).0
     }
 
-    pub const fn highest_occupied_energy_level(self) -> u8 {
-        todo!()
+    /// Returns [`None`] if there are no shells
+    pub const fn valance_capacity(self) -> Option<NonZeroU8> {
+        if let Some(valance) = self.sublevels().last() {
+            Some(valance.capacity())
+        } else {
+            None
+        }
+    }
+
+    pub const fn valance_electrons(self) -> u8 {
+        self.outermost
+    }
+
+    /// Valance shell capacity - valance electrons
+    pub const fn available(self) -> u8 {
+        let capacity = match self.valance_capacity() {
+            Some(n) => n.get(),
+            None => 0,
+        };
+        let electrons = self.valance_electrons();
+        assert!(
+            electrons <= capacity,
+            "number of electrons in a given shell cannot exceed that shell's capacity"
+        );
+        capacity - electrons
     }
 }
 
@@ -409,7 +430,7 @@ impl std::fmt::Display for ElectronConfig {
         }
         if let Some(orbital) = it.next() {
             superscript(&mut buf, self.outermost)?;
-            write!(f, "{}{} ", orbital, buf.1)?;
+            write!(f, "{}{}", orbital, buf.1)?;
         }
         Ok(())
     }
@@ -485,7 +506,8 @@ mod tests {
         ];
         for (electrons, expect) in TESTS {
             let actual = ElectronConfig::new(electrons);
-            println!("{electrons:>2} electrons: {actual}");
+            let available = actual.available();
+            println!("{electrons:>2} electrons: {actual} -- {available} available");
             assert_eq!(actual, expect);
         }
     }
