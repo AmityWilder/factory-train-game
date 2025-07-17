@@ -1,5 +1,5 @@
 use raylib::prelude::*;
-use std::{cell::Cell, str::FromStr};
+use std::{cell::Cell, mem::MaybeUninit, str::FromStr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyState {
@@ -402,14 +402,76 @@ impl VectorSource {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EventInput {
+    Sprint,
+    Jump,
+    NextItem,
+    PrevItem,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AxisInput {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum VectorInput {
+    Walk,
+    Look,
+}
+
 #[derive(Debug)]
 pub struct Bindings {
-    pub walk: VectorSource,
-    pub sprint: EventSource,
-    pub jump: EventSource,
-    pub look: VectorSource,
-    pub next_item: EventSource,
-    pub prev_item: EventSource,
+    pub event: [EventSource; 4],
+    pub axis: [AxisSource; 0],
+    pub vector: [VectorSource; 2],
+}
+
+impl std::ops::Index<EventInput> for Bindings {
+    type Output = EventSource;
+
+    #[inline]
+    fn index(&self, index: EventInput) -> &Self::Output {
+        &self.event[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<EventInput> for Bindings {
+    #[inline]
+    fn index_mut(&mut self, index: EventInput) -> &mut Self::Output {
+        &mut self.event[index as usize]
+    }
+}
+
+impl std::ops::Index<AxisInput> for Bindings {
+    type Output = AxisSource;
+
+    #[inline]
+    fn index(&self, index: AxisInput) -> &Self::Output {
+        &self.axis[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<AxisInput> for Bindings {
+    #[inline]
+    fn index_mut(&mut self, index: AxisInput) -> &mut Self::Output {
+        &mut self.axis[index as usize]
+    }
+}
+
+impl std::ops::Index<VectorInput> for Bindings {
+    type Output = VectorSource;
+
+    #[inline]
+    fn index(&self, index: VectorInput) -> &Self::Output {
+        &self.vector[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<VectorInput> for Bindings {
+    #[inline]
+    fn index_mut(&mut self, index: VectorInput) -> &mut Self::Output {
+        &mut self.vector[index as usize]
+    }
 }
 
 impl FromStr for Bindings {
@@ -422,18 +484,92 @@ impl FromStr for Bindings {
 
 impl Default for Bindings {
     fn default() -> Self {
+        Self {
+            event: [const { EventSource::Constant(false) }; _],
+            axis: [const { AxisSource::Constant(0.0) }; _],
+            vector: [const { VectorSource::Constant(Vector2::ZERO) }; _],
+        }
+    }
+}
+
+impl Bindings {
+    pub fn default_binds() -> Self {
         #[allow(unused_imports, clippy::enum_glob_use, reason = "already prefixed")]
         use raylib::prelude::{GamepadAxis::*, GamepadButton::*, KeyboardKey::*, MouseButton::*};
-        Self {
-            walk: (KEY_D.down() - KEY_A.down())
-                .cartesian(KEY_W.down() - KEY_S.down())
-                .normalize(),
-            sprint: KEY_LEFT_SHIFT.down() | KEY_RIGHT_SHIFT.down(),
-            jump: KEY_SPACE.pressed(),
-            look: VectorSource::Mouse,
-            next_item: VectorSource::MouseWheel.max_magnitude().gt(0.0),
-            prev_item: VectorSource::MouseWheel.max_magnitude().lt(0.0),
+
+        let mut result = Self::default();
+        result[VectorInput::Walk] = (KEY_D.down() - KEY_A.down())
+            .cartesian(KEY_W.down() - KEY_S.down())
+            .normalize();
+        result[VectorInput::Look] = VectorSource::Mouse;
+        result[EventInput::Sprint] = KEY_LEFT_SHIFT.down() | KEY_RIGHT_SHIFT.down();
+        result[EventInput::Jump] = KEY_SPACE.pressed();
+        result[EventInput::NextItem] = VectorSource::MouseWheel.max_magnitude().gt(0.0);
+        result[EventInput::PrevItem] = VectorSource::MouseWheel.max_magnitude().lt(0.0);
+        result
+    }
+
+    pub fn get(&self, rl: &RaylibHandle) -> Inputs {
+        Inputs {
+            event: std::array::from_fn(|idx| self.event[idx].get(rl)),
+            axis: std::array::from_fn(|idx| self.axis[idx].get(rl)),
+            vector: std::array::from_fn(|idx| self.vector[idx].get(rl)),
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Inputs {
+    pub event: [bool; 4],
+    pub axis: [f32; 0],
+    pub vector: [Vector2; 2],
+}
+
+impl std::ops::Index<EventInput> for Inputs {
+    type Output = bool;
+
+    #[inline]
+    fn index(&self, index: EventInput) -> &Self::Output {
+        &self.event[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<EventInput> for Inputs {
+    #[inline]
+    fn index_mut(&mut self, index: EventInput) -> &mut Self::Output {
+        &mut self.event[index as usize]
+    }
+}
+
+impl std::ops::Index<AxisInput> for Inputs {
+    type Output = f32;
+
+    #[inline]
+    fn index(&self, index: AxisInput) -> &Self::Output {
+        &self.axis[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<AxisInput> for Inputs {
+    #[inline]
+    fn index_mut(&mut self, index: AxisInput) -> &mut Self::Output {
+        &mut self.axis[index as usize]
+    }
+}
+
+impl std::ops::Index<VectorInput> for Inputs {
+    type Output = Vector2;
+
+    #[inline]
+    fn index(&self, index: VectorInput) -> &Self::Output {
+        &self.vector[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<VectorInput> for Inputs {
+    #[inline]
+    fn index_mut(&mut self, index: VectorInput) -> &mut Self::Output {
+        &mut self.vector[index as usize]
     }
 }
 
@@ -443,6 +579,6 @@ mod tests {
 
     #[test]
     fn test0() {
-        dbg!(Bindings::default());
+        dbg!(Bindings::default_binds());
     }
 }
