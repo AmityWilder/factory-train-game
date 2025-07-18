@@ -87,6 +87,21 @@ impl PlayerVector3 {
             z: self.z.multiply(rhs.z),
         }
     }
+
+    #[inline]
+    pub const fn dot(self, rhs: Self) -> PlayerCoord {
+        self.x.multiply(rhs.x) + self.y.multiply(rhs.y) + self.z.multiply(rhs.z)
+    }
+
+    #[inline]
+    pub const fn length_squared(self) -> PlayerCoord {
+        self.dot(self)
+    }
+
+    #[inline]
+    pub const fn distance_squared(self, other: Self) -> PlayerCoord {
+        self.minus(other).length_squared()
+    }
 }
 
 impl From<Vector3> for PlayerVector3 {
@@ -103,7 +118,7 @@ impl From<PlayerVector3> for Vector3 {
     }
 }
 
-impl Add for PlayerVector3 {
+impl const Add for PlayerVector3 {
     type Output = Self;
 
     #[inline]
@@ -231,7 +246,7 @@ impl FactoryVector3 {
     }
 }
 
-impl Add for FactoryVector3 {
+impl const Add for FactoryVector3 {
     type Output = Self;
 
     #[inline]
@@ -357,7 +372,7 @@ impl From<RailVector3> for PlayerVector3 {
     }
 }
 
-impl Add for RailVector3 {
+impl const Add for RailVector3 {
     type Output = Self;
 
     #[inline]

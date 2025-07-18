@@ -8,8 +8,10 @@
     clippy::multiple_unsafe_ops_per_block
 )]
 #![warn(clippy::unnecessary_safety_doc, clippy::unnecessary_safety_comment)]
-#![feature(const_trait_impl, new_range_api, unchecked_shifts)]
+#![feature(const_trait_impl, new_range_api, unchecked_shifts, const_ops)]
 
+use coords::FactoryVector3;
+use ordinals::Cardinal2D;
 use raylib::prelude::*;
 
 mod coords;
@@ -28,7 +30,14 @@ use player::Player;
 mod chem;
 
 mod factory;
-use factory::{Factory, Resources};
+use factory::{Factory, Reactor, Resources};
+
+pub const FORWARD: Vector3 = Vector3::NEG_Z;
+pub const BACKWARD: Vector3 = Vector3::Z;
+pub const RIGHT: Vector3 = Vector3::X;
+pub const LEFT: Vector3 = Vector3::NEG_X;
+pub const UP: Vector3 = Vector3::Y;
+pub const DOWN: Vector3 = Vector3::NEG_Y;
 
 fn main() {
     #[allow(unused_imports)]
@@ -53,11 +62,27 @@ fn main() {
 
     let bindings = Bindings::default_binds();
 
-    let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::new(0, 0, 0));
+    let mut player = Player::spawn(
+        &mut rl,
+        &thread,
+        PlayerVector3::new(0, 0, 0),
+        0.0,
+        0.0,
+        45.0,
+    );
 
     let mut factory: Factory = Factory {
         origin: RailVector3 { x: 0, y: 0, z: 0 },
-        reactors: Vec::new(),
+        reactors: vec![
+            Reactor {
+                position: FactoryVector3 { x: 5, y: 0, z: -6 },
+                rotation: Cardinal2D::default(),
+            },
+            Reactor {
+                position: FactoryVector3 { x: -3, y: 0, z: -9 },
+                rotation: Cardinal2D::default(),
+            },
+        ],
     };
 
     while !rl.window_should_close() {
@@ -68,12 +93,7 @@ fn main() {
         d.clear_background(Color::BLACK);
 
         {
-            let mut d = d.begin_mode3D(Camera3D::perspective(
-                Vector3::new(0.0, player.height(), 0.0),
-                Vector3::new(0.0, player.height(), -1.0),
-                Vector3::new(0.0, 1.0, 0.0),
-                45.0,
-            ));
+            let mut d = d.begin_mode3D(player.camera);
             factory.draw(&mut d, &thread, &mut resources, &player.position);
         }
 
@@ -81,8 +101,17 @@ fn main() {
         d.draw_text_ex(
             &font,
             &format!(
-                "player position: ({:X}, {:X}, {:X})",
-                player.position.x, player.position.y, player.position.z,
+                "player position: ({:X}, {:X}, {:X})\n\
+                player velocity: ({:X}, {:X}, {:X})\n\
+                player direction: ({}, {})",
+                player.position.x,
+                player.position.y,
+                player.position.z,
+                player.velocity.x,
+                player.velocity.y,
+                player.velocity.z,
+                player.yaw,
+                player.pitch,
             ),
             Vector2::new(0.0, 20.0),
             20.0,

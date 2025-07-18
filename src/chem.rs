@@ -1,9 +1,23 @@
 use arrayvec::ArrayVec;
 use std::num::NonZeroU8;
 
-pub const PROTON_MASS: f64 = 1.672_621_925_955_2e-27;
-pub const NEUTRON_MASS: f64 = 1.674_927_500_568_5e-27;
-pub const ELECTRON_MASS: f64 = 9.109_383_713_928e-31;
+pub const AVOGADROS_NUMBER: f64 = 6.022_140_76e+26;
+/// Atomic mass units per kilogram
+pub const AMU_PER_KG: f64 = AVOGADROS_NUMBER;
+/// Kilograms per atomic mass unit
+pub const KG_PER_AMU: f64 = AMU_PER_KG.recip();
+
+/// Picometers per meter
+pub const PM_PER_M: f64 = 1e+12;
+/// Meters per picometer
+pub const M_PER_PM: f64 = 1e-12;
+
+/// Mass of a single proton in AMU
+pub const PROTON_MASS: f64 = 1.007_276_466_879_91;
+/// Mass of a single neutron in AMU
+pub const NEUTRON_MASS: f64 = 1.008_106;
+/// Mass of a single electron in AMU
+pub const ELECTRON_MASS: f64 = 5.485_799_090_701_6e-4;
 
 // S: Spherical
 // P: Dumbell
@@ -220,6 +234,19 @@ impl Element {
     pub const fn is_noble_gas(self) -> bool {
         matches!(self, He | Ne | Ar | Kr | Xe | Rn | Og)
     }
+
+    /// Elements that tend to form cations instead of anions
+    #[rustfmt::skip]
+    pub const fn is_metal(self) -> bool {
+        matches!(self,
+            |Li|Be
+            |Na|Mg                                                                        |Al
+            |K |Ca                                          |Sc|Ti|V |Cr|Mn|Fe|Co|Ni|Cu|Zn|Ga
+            |Rb|Sr                                          |Y |Zr|Nb|Mo|Tc|Ru|Rh|Pd|Ag|Cd|In|Sn
+            |Cs|Ba|La|Ce|Pr|Nd|Pm|Sm|Eu|Gd|Tb|Dy|Ho|Er|Tm|Yb|Lu|Hf|Ta|W |Re|Os|Ir|Pt|Au|Hg|Tl|Pb|Bi
+            |Fr|Ra|Ac|Th|Pa|U |Np|Pu|Am|Cm|Bk|Cf|Es|Fm|Md|No|Lr|Rf|Db|Sg|Bh|Hs|Mt|Ds|Rg|Cn|Nh|Fl|Mc|Lv
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -269,7 +296,7 @@ impl Atom {
         write!(f, "{}-{}", self.element.name(), self.neutrons)
     }
 
-    /// Mass in kg of one atom
+    /// Mass of one atom in AMU
     pub const fn mass(self) -> f64 {
         self.element.protons().get() as f64 * PROTON_MASS
             + self.neutrons as f64 * NEUTRON_MASS
@@ -420,39 +447,32 @@ impl std::fmt::Display for ElectronConfig {
             }
             Ok(())
         }
-        let mut sublevels = self.sublevels().to_vec();
-        sublevels.sort_by_key(|lv| lv.energy_level());
-        let mut it = sublevels.iter();
-        let mut buf = (String::new(), String::new());
-        for orbital in it.by_ref().take(sublevels.len().saturating_sub(1)) {
-            superscript(&mut buf, orbital.capacity().get())?;
-            write!(f, "{}{} ", orbital, buf.1)?;
+        let mut sublevels = self
+            .sublevels()
+            .iter()
+            .map(|o| (o, o.capacity().get()))
+            .collect::<Vec<_>>();
+        if let Some((_, n)) = sublevels.last_mut() {
+            *n = self.outermost;
         }
-        if let Some(orbital) = it.next() {
-            superscript(&mut buf, self.outermost)?;
+        sublevels.sort_by_key(|lv| lv.0.energy_level());
+        let total = sublevels.len();
+        let mut buf = (String::new(), String::new());
+        for (n, (orbital, electrons)) in sublevels.into_iter().enumerate() {
+            superscript(&mut buf, electrons)?;
             write!(f, "{}{}", orbital, buf.1)?;
+            if n < total - 1 {
+                write!(f, " ")?;
+            }
         }
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ion {
-    pub element: Element,
-    pub count: NonZeroU8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Phase {
-    Solid,
-    Aqueous,
-    Liquid,
-    Gas,
-}
-
-pub struct Compound {
-    cation: ArrayVec<Element, 8>,
-    anion: ArrayVec<Element, 8>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Molecule {
+    pub atoms: Vec<Atom>,
+    pub bonds: Vec<[u8; 2]>,
 }
 
 #[cfg(test)]
@@ -462,28 +482,58 @@ mod tests {
     #[test]
     fn test_masses() {
         const EPSILON: f64 = 0.01e-27;
-        let expect = 1.67e-27;
-        let actual = Atom {
-            element: H,
-            neutrons: 0,
-            electrons: 1,
+        const TESTS: [(Atom, f64); 3] = [
+            (
+                Atom {
+                    element: H,
+                    neutrons: 0,
+                    electrons: 1,
+                },
+                1.008,
+            ),
+            (
+                Atom {
+                    element: H,
+                    neutrons: 1,
+                    electrons: 1,
+                },
+                2.014,
+            ),
+            (
+                Atom {
+                    element: C,
+                    neutrons: 6,
+                    electrons: 6,
+                },
+                12.0107,
+            ),
+        ];
+        for (atom, expect) in TESTS {
+            let actual = atom.mass();
+            assert!(
+                (actual - expect).abs() <= EPSILON,
+                "mass of {atom:?}\n expect: {expect}kg\n actual: {actual}kg",
+            );
         }
-        .mass();
-        assert!(
-            (actual - expect).abs() <= EPSILON,
-            "mass of hydrogen\n expect: {expect}kg\n actual: {actual}kg"
-        );
-        let expect = 3.344_476_425e-27;
-        let actual = Atom {
-            element: H,
-            neutrons: 1,
-            electrons: 1,
+    }
+
+    #[test]
+    fn test_configuration_fmt() {
+        #[rustfmt::skip]
+        const TESTS: [(Element, &str); 4] = [
+            (He, "1s²"),
+            (B,  "1s² 2s² 2p¹"),
+            (Ne, "1s² 2s² 2p⁶"),
+            (Al, "1s² 2s² 2p⁶ 3s² 3p¹"),
+            // TODO: apparently elections can be "fascinated"??
+            // (U,  "1s² 2s² 2p⁶ 3s² 3p⁶ 4s² 3d¹⁰ 4p⁶ 5s² 4d¹⁰ 5p⁶ 6s² 4f¹⁴ 5d¹⁰ 6p⁶ 7s² 5f³ 6d¹"),
+        ];
+        for (element, expect) in TESTS {
+            let electrons = element.protons().get();
+            let config = ElectronConfig::new(electrons);
+            let actual = config.to_string();
+            assert_eq!(&actual, expect);
         }
-        .mass();
-        assert!(
-            (actual - expect).abs() <= EPSILON,
-            "mass of deuterium\n expect: {expect}kg\n actual: {actual}kg"
-        );
     }
 
     #[test]
@@ -508,6 +558,29 @@ mod tests {
             let actual = ElectronConfig::new(electrons);
             let available = actual.available();
             println!("{electrons:>2} electrons: {actual} -- {available} available");
+            assert_eq!(actual, expect);
+        }
+    }
+
+    #[test]
+    fn test_availability() {
+        const TESTS: [(Element, u8); 8] = [
+            (H, 1),
+            (He, 0),
+            (O, 2),
+            (N, 3),
+            (C, 4),
+            (F, 1),
+            (Fe, 4),
+            (U, 10),
+        ];
+        for (element, expect) in TESTS {
+            let electrons = element.protons().get();
+            let config = ElectronConfig::new(electrons);
+            let actual = config.available();
+            println!(
+                "neutral {element} ({electrons} electrons -- {config}) can form {actual} bonds"
+            );
             assert_eq!(actual, expect);
         }
     }
