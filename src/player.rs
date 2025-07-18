@@ -87,10 +87,10 @@ impl Player {
 
             let mut force = PlayerVector3::new(0, 0, 0);
 
-            let movement = inputs[Walk];
+            let movement = inputs[Walk].normalize_or_zero();
             if self.is_on_floor {
-                if movement.length_squared() <= 0.001 {
-                    self.velocity *= PlayerCoord::from_f32(0.01);
+                if movement.length_squared() < 0.01 {
+                    self.velocity -= self.velocity.scale((0.1).into());
                 }
             } else {
                 force += (DOWN * GRAVITY).into();
@@ -104,16 +104,17 @@ impl Player {
             };
 
             if inputs[Jump] && self.is_on_floor {
-                force += (UP * GRAVITY * 10.0).into();
+                force += (UP * GRAVITY * 40.0).into();
             }
 
-            let movement_force = (RIGHT * movement.x + FORWARD * movement.y) * move_speed;
-            force += movement_force.into();
+            let movement_force =
+                ((RIGHT * movement.x + FORWARD * movement.y) * move_speed * 6.0).into();
+            force += movement_force;
 
             self.velocity += force.scale(dt.into());
 
             // velocity dead zone
-            if self.velocity.length_squared() < 0.0001 {
+            if self.velocity.length_squared() < 0.0001.into() {
                 self.velocity = PlayerVector3::new(0, 0, 0);
             }
 

@@ -1,4 +1,3 @@
-use arrayvec::ArrayVec;
 use std::num::NonZeroU8;
 
 pub const AVOGADROS_NUMBER: f64 = 6.022_140_76e+26;

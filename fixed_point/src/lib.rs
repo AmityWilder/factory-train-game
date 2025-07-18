@@ -1,61 +1,19 @@
-#![feature(const_ops, const_trait_impl)]
+#![feature(const_ops, const_trait_impl, maybe_uninit_slice)]
 
-use std::ops::*;
+use std::{mem::MaybeUninit, ops::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Q32_32(i64);
 
-impl PartialEq<i32> for Q32_32 {
-    #[inline]
-    fn eq(&self, other: &i32) -> bool {
-        self.eq(&Self::from_i32(*other))
-    }
-}
-
-impl PartialOrd<i32> for Q32_32 {
-    fn partial_cmp(&self, other: &i32) -> Option<std::cmp::Ordering> {
-        self.partial_cmp(&Self::from_i32(*other))
-    }
-}
-
-impl PartialEq<f32> for Q32_32 {
-    #[inline]
-    fn eq(&self, other: &f32) -> bool {
-        self.eq(&Self::from_f32(*other))
-    }
-}
-
-impl PartialOrd<f32> for Q32_32 {
-    fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
-        self.partial_cmp(&Self::from_f32(*other))
-    }
-}
-
-impl PartialEq<Q32_32> for i32 {
-    #[inline]
-    fn eq(&self, other: &Q32_32) -> bool {
-        Q32_32::from_i32(*self).eq(other)
-    }
-}
-
-impl PartialOrd<Q32_32> for i32 {
-    #[inline]
-    fn partial_cmp(&self, other: &Q32_32) -> Option<std::cmp::Ordering> {
-        Q32_32::from_i32(*self).partial_cmp(other)
-    }
-}
-
-impl PartialEq<Q32_32> for f32 {
-    #[inline]
-    fn eq(&self, other: &Q32_32) -> bool {
-        Q32_32::from_f32(*self).eq(other)
-    }
-}
-
-impl PartialOrd<Q32_32> for f32 {
-    #[inline]
-    fn partial_cmp(&self, other: &Q32_32) -> Option<std::cmp::Ordering> {
-        Q32_32::from_f32(*self).partial_cmp(other)
+impl std::fmt::Binary for Q32_32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:b}.{:>02$b}",
+            self.0.cast_unsigned() >> Self::DECIMAL_BITS,
+            self.0.cast_unsigned() & Self::DECIMAL_MASK,
+            Self::DECIMAL_BITS.try_into().unwrap(),
+        )
     }
 }
 
@@ -63,17 +21,57 @@ impl std::fmt::UpperHex for Q32_32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:>08X}.{:>08X}",
+            "{:X}.{:>02$X}",
             self.0.cast_unsigned() >> Self::DECIMAL_BITS,
             self.0.cast_unsigned() & Self::DECIMAL_MASK,
+            (Self::DECIMAL_BITS >> 2).try_into().unwrap(),
         )
+    }
+}
+
+impl std::fmt::LowerHex for Q32_32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:x}.{:>02$x}",
+            self.0.cast_unsigned() >> Self::DECIMAL_BITS,
+            self.0.cast_unsigned() & Self::DECIMAL_MASK,
+            (Self::DECIMAL_BITS >> 2).try_into().unwrap(),
+        )
+    }
+}
+
+impl std::fmt::Display for Q32_32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const MAX_DIGITS: usize = 32;
+        let sign = if self.0.is_negative() { "-" } else { "" };
+        let ipart = (self.0.cast_unsigned() & Self::INTEGER_MASK)
+            .cast_signed()
+            .unsigned_abs()
+            >> Self::DECIMAL_BITS;
+        let mut fbits = self.0.cast_unsigned() & Self::DECIMAL_MASK;
+        let mut buf = [MaybeUninit::uninit(); MAX_DIGITS];
+        let mut buf_len = 0;
+        for digit in buf.iter_mut().take(f.precision().unwrap_or(MAX_DIGITS)) {
+            fbits *= 10;
+            digit.write(b'0' + u8::try_from((fbits / Self::DECIMAL_FACTOR_INT) % 10).unwrap());
+            buf_len += 1;
+            fbits &= Self::DECIMAL_MASK;
+            if f.precision().is_none() && fbits == 0 {
+                break;
+            }
+        }
+        let fpart = unsafe { str::from_utf8_unchecked(buf[0..buf_len].assume_init_ref()) };
+        write!(f, "{sign}{ipart}.{fpart}")
     }
 }
 
 impl Q32_32 {
     const DECIMAL_BITS: u32 = 32;
     const DECIMAL_FACTOR_INT: u64 = 1 << Self::DECIMAL_BITS;
+    const DECIMAL_FACTOR_ISQRT: u64 = Self::DECIMAL_FACTOR_INT.isqrt();
     const DECIMAL_MASK: u64 = Self::DECIMAL_FACTOR_INT - 1;
+    const INTEGER_MASK: u64 = !Self::DECIMAL_MASK;
     const DECIMAL_FACTOR: f64 = Self::DECIMAL_FACTOR_INT as f64;
     const DECIMAL_INV_FACTOR: f64 = Self::DECIMAL_FACTOR.recip();
 
@@ -81,6 +79,11 @@ impl Q32_32 {
     pub const fn precision(target: f32) -> RangeInclusive<f32> {
         (target as f64 - Q32_32::DECIMAL_INV_FACTOR) as f32
             ..=(target as f64 + Q32_32::DECIMAL_INV_FACTOR) as f32
+    }
+
+    #[inline]
+    pub const fn new(ipart: i32, fpart: u32) -> Self {
+        Self(((ipart as i64) << Self::DECIMAL_BITS) | fpart as i64)
     }
 
     #[inline]
@@ -111,6 +114,11 @@ impl Q32_32 {
     #[inline]
     pub const fn multiply(self, rhs: Self) -> Self {
         Self(((self.0 as i128 * rhs.0 as i128) >> Self::DECIMAL_BITS) as i64)
+    }
+
+    #[inline]
+    pub const fn sqrt(self) -> Self {
+        Self(self.0.isqrt() * Self::DECIMAL_FACTOR_ISQRT as i64)
     }
 }
 
@@ -396,5 +404,27 @@ mod test_fixed_point {
             Q32_32::from_f32(-0.5) * Q32_32::from_f32(-0.5),
             Q32_32::from_f32(0.25)
         );
+    }
+
+    #[test]
+    fn test_sqrt() {
+        assert_eq!(Q32_32::from_i32(100).sqrt(), Q32_32::from_i32(10));
+    }
+
+    #[test]
+    fn test_fmt() {
+        for ((ipart, fpart), expect) in [
+            ((0, 0), "0.0"),
+            ((100, 0), "100.0"),
+            ((-100, 0), "-100.0"),
+            ((5, (Q32_32::DECIMAL_FACTOR_INT / 2) as u32), "5.5"),
+            ((1, 1), "1.00000000023283064365386962890625"),
+            ((-100, 645566574), "-100.1503076809458434581756591796875"),
+        ] {
+            let actual = Q32_32::new(ipart, fpart).to_string();
+            assert_eq!(&actual, expect);
+        }
+        let actual = format!("{:.3}", Q32_32::new(-100, 645566574));
+        assert_eq!(&actual, "-100.150");
     }
 }

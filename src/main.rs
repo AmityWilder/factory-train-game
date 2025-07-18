@@ -1,4 +1,5 @@
 #![warn(clippy::pedantic)]
+#![warn(clippy::all)]
 #![warn(clippy::style)]
 #![deny(clippy::perf)]
 #![allow(dead_code)]
@@ -101,9 +102,9 @@ fn main() {
         d.draw_text_ex(
             &font,
             &format!(
-                "player position: ({:X}, {:X}, {:X})\n\
-                player velocity: ({:X}, {:X}, {:X})\n\
-                player direction: ({}, {})",
+                "player position: ({:.3}, {:.3}, {:.3})\n\
+                player velocity: ({:.3}, {:.3}, {:.3})\n\
+                player direction: ({:.3}, {:.3})",
                 player.position.x,
                 player.position.y,
                 player.position.z,
