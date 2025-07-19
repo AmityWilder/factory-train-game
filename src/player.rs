@@ -20,10 +20,7 @@ pub struct Player {
     pub pitch: f32,
     pub yaw: f32,
     pub is_running: bool,
-    pub walk_speed: f32,
-    pub run_speed: f32,
     pub camera: Camera3D,
-    is_on_floor: bool,
 }
 
 impl Player {
@@ -44,15 +41,12 @@ impl Player {
             yaw,
             pitch,
             is_running: false,
-            walk_speed: 2.2,
-            run_speed: 8.6,
             camera: Camera3D::perspective(
                 camera_offset,
                 camera_offset + rot.mul_vec3(FORWARD),
                 UP,
                 fovy,
             ),
-            is_on_floor: true,
         }
     }
 
@@ -79,8 +73,8 @@ impl Player {
         {
             const FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
 
-            self.is_on_floor = self.position.y <= FLOOR_HEIGHT;
-            if self.is_on_floor {
+            let is_on_floor = self.position.y <= FLOOR_HEIGHT;
+            if is_on_floor {
                 self.velocity.y = 0.into();
                 self.position.y = FLOOR_HEIGHT;
             }
@@ -88,7 +82,7 @@ impl Player {
             let mut force = PlayerVector3::new(0, 0, 0);
 
             let movement = inputs[Walk].normalize_or_zero();
-            if self.is_on_floor {
+            if is_on_floor {
                 if movement.length_squared() < 0.01 {
                     self.velocity -= self.velocity.scale((0.1).into());
                 }
@@ -98,12 +92,12 @@ impl Player {
 
             // Measured in meters per second
             let move_speed = if inputs[Sprint] {
-                self.run_speed
+                self.run_speed()
             } else {
-                self.walk_speed
+                self.walk_speed()
             };
 
-            if inputs[Jump] && self.is_on_floor {
+            if inputs[Jump] && is_on_floor {
                 force += (UP * GRAVITY * 40.0).into();
             }
 
@@ -121,4 +115,9 @@ impl Player {
             self.position += self.velocity.scale(dt.into());
         }
     }
+
+    #[allow(clippy::unused_self, reason = "may be used in future")]
+    const fn walk_speed(&self) -> f32 { 2.2 }
+    #[allow(clippy::unused_self, reason = "may be used in future")]
+    const fn run_speed(&self) -> f32 { 8.6 }
 }
