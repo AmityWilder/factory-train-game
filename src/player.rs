@@ -60,12 +60,6 @@ impl Player {
     ) {
         #[allow(unused_imports, clippy::enum_glob_use, reason = "no reason")]
         use input::{AxisInput::*, EventInput::*, VectorInput::*};
-        #[allow(
-            unused_imports,
-            clippy::enum_glob_use,
-            reason = "Variants are prefixed"
-        )]
-        use {KeyboardKey::*, MouseButton::*};
 
         let dt = rl.get_frame_time();
 
