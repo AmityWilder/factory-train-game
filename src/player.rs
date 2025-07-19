@@ -120,9 +120,13 @@ impl Player {
 
             self.velocity += force.scale(dt.into());
 
-            // velocity dead zone
-            if self.velocity.length_squared() < 0.0001.into() {
+            let vel_len_sq = self.velocity.length_squared();
+            if vel_len_sq < 0.0001.into() {
+                // velocity dead zone
                 self.velocity = PlayerVector3::new(0, 0, 0);
+            } else {
+                // quadratic friction for soft speed cap
+                self.velocity *= PlayerCoord::from(1) - vel_len_sq * PlayerCoord::from_f32(0.0005);
             }
 
             self.position += self.velocity.scale(dt.into());
