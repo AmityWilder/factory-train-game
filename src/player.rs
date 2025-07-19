@@ -1,3 +1,4 @@
+use std::f32::consts::PI;
 use crate::{
     DOWN, FORWARD, RIGHT, UP,
     coords::{PlayerCoord, PlayerVector3},
@@ -74,7 +75,9 @@ impl Player {
             let pan = inputs[Look] * 0.0007;
             self.yaw += pan.x;
             self.pitch += pan.y;
-            (self.camera.position, self.camera.target) = camera_helper(self.pitch, self.yaw); 
+            self.pitch = self.pitch.clamp(-PI, PI);
+            self.yaw = self.yaw % (PI * 2.0);
+            (self.camera.position, self.camera.target) = camera_helper(self.pitch, self.yaw);
         }
         
         // Movement
