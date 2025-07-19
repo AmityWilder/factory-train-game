@@ -13,6 +13,9 @@ use raylib::prelude::{
 /// Meters per second per second
 const GRAVITY: f32 = 9.807;
 
+const FRICTION: f32 = 0.0005;
+const AIR_MOBILITY_FACTOR: f32 = 0.1;
+
 pub struct Player {
     /// Meters
     pub position: PlayerVector3,
@@ -94,13 +97,14 @@ impl Player {
 
             // convert from polar coords, making a unit vector for the facing angle.
             let move_dir = Vector2::new(self.yaw.cos(), self.yaw.sin());
-            let movement = inputs[Walk].normalize_or_zero().rotate(move_dir);
+            let mut movement = inputs[Walk].normalize_or_zero().rotate(move_dir);
             if is_on_floor {
                 if movement.length_squared() < 0.01 {
                     self.velocity -= self.velocity.scale((0.1).into());
                 }
             } else {
                 force += (DOWN * GRAVITY).into();
+                movement *= AIR_MOBILITY_FACTOR;
             }
 
             // Measured in meters per second
@@ -125,8 +129,10 @@ impl Player {
                 // velocity dead zone
                 self.velocity = PlayerVector3::new(0, 0, 0);
             } else {
-                // quadratic friction for soft speed cap
-                self.velocity *= PlayerCoord::from(1) - vel_len_sq * PlayerCoord::from_f32(0.0005);
+                if is_on_floor {
+                    // quadratic friction for soft speed cap
+                    self.velocity *= PlayerCoord::from(1) - vel_len_sq * PlayerCoord::from_f32(FRICTION);
+                }
             }
 
             self.position += self.velocity.scale(dt.into());
