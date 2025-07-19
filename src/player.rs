@@ -92,7 +92,9 @@ impl Player {
 
             let mut force = PlayerVector3::new(0, 0, 0);
 
-            let movement = inputs[Walk].normalize_or_zero();
+            // convert from polar coords, making a unit vector for the facing angle.
+            let move_dir = Vector2::new(self.yaw.cos(), self.yaw.sin());
+            let movement = inputs[Walk].normalize_or_zero().rotate(move_dir);
             if is_on_floor {
                 if movement.length_squared() < 0.01 {
                     self.velocity -= self.velocity.scale((0.1).into());
