@@ -421,9 +421,9 @@ pub enum VectorInput {
 
 #[derive(Debug)]
 pub struct Bindings {
-    pub event: [EventSource; 4],
-    pub axis: [AxisSource; 0],
-    pub vector: [VectorSource; 2],
+    event: [EventSource; 4],
+    axis: [AxisSource; 0],
+    vector: [VectorSource; 2],
 }
 
 impl std::ops::Index<EventInput> for Bindings {
@@ -520,9 +520,9 @@ impl Bindings {
 
 #[derive(Debug, Default)]
 pub struct Inputs {
-    pub event: [bool; 4],
-    pub axis: [f32; 0],
-    pub vector: [Vector2; 2],
+    event: [bool; 4],
+    axis: [f32; 0],
+    vector: [Vector2; 2],
 }
 
 impl std::ops::Index<EventInput> for Inputs {
