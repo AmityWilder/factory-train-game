@@ -23,6 +23,13 @@ pub struct Player {
     pub camera: Camera3D,
 }
 
+#[inline]
+fn camera_helper(pitch: f32, yaw: f32) -> (Vector3, Vector3) {
+    let camera_offset = UP * 1.6;
+    let rot = Quat::from_euler(EulerRot::XYZ, pitch, yaw, 0.0);
+    (camera_offset, camera_offset + rot.mul_vec3(FORWARD))
+}
+
 impl Player {
     /// Spawn the player at the specified location
     pub fn spawn(
@@ -33,8 +40,7 @@ impl Player {
         pitch: f32,
         fovy: f32,
     ) -> Self {
-        let camera_offset = UP * 1.6;
-        let rot = Quat::from_euler(EulerRot::XYZ, pitch, yaw, 0.0);
+        let (camera_offset, camera_target) = camera_helper(pitch, yaw);
         Self {
             position,
             velocity: PlayerVector3::new(0, 0, 0),
@@ -43,7 +49,7 @@ impl Player {
             is_running: false,
             camera: Camera3D::perspective(
                 camera_offset,
-                camera_offset + rot.mul_vec3(FORWARD),
+                camera_target,
                 UP,
                 fovy,
             ),
@@ -63,6 +69,14 @@ impl Player {
 
         let dt = rl.get_frame_time();
 
+        // Looking around
+        {
+            let pan = inputs[Look] * 0.0007;
+            self.yaw += pan.x;
+            self.pitch += pan.y;
+            (self.camera.position, self.camera.target) = camera_helper(self.pitch, self.yaw); 
+        }
+        
         // Movement
         {
             const FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);

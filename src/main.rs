@@ -52,6 +52,9 @@ fn main() {
 
     rl.set_target_fps(60);
     rl.maximize_window();
+    rl.hide_cursor();
+    // lock cursor.
+    rl.disable_cursor();
 
     let mut resources = Resources::new(&mut rl, &thread);
 
