@@ -85,7 +85,7 @@ impl Player {
         {
             const WORLD_FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
 
-            let position_in_factory = self.position.to_factory_relative(current_factory.origin);
+            let position_in_factory = self.position.to_factory_relative(&current_factory.origin);
 
             let local_floor = current_factory
                 .reactors

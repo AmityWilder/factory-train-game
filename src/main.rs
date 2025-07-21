@@ -1,13 +1,9 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::all)]
 #![warn(clippy::style)]
-#![deny(clippy::perf)]
+#![deny(clippy::perf, clippy::multiple_unsafe_ops_per_block)]
 #![allow(dead_code)]
-#![forbid(
-    clippy::missing_safety_doc,
-    clippy::undocumented_unsafe_blocks,
-    clippy::multiple_unsafe_ops_per_block
-)]
+#![forbid(clippy::missing_safety_doc, clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::unnecessary_safety_doc, clippy::unnecessary_safety_comment)]
 #![feature(
     const_trait_impl,

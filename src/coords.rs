@@ -56,7 +56,7 @@ impl PlayerVector3 {
     /// Convert to renderer vector
     #[inline]
     #[cfg(debug_assertions)]
-    pub fn to_factory_relative(self, origin: RailVector3) -> FactoryVector3 {
+    pub fn to_factory_relative(self, origin: &RailVector3) -> FactoryVector3 {
         const I16_MIN: i32 = i16::MIN as i32;
         const I16_MAX: i32 = i16::MAX as i32;
         let rail = RailVector3 {

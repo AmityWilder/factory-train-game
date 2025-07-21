@@ -1,4 +1,5 @@
 use crate::{
+    BACKWARD, DOWN, FORWARD, LEFT, RIGHT, UP,
     coords::{FactoryVector3, PlayerVector3, RailVector3},
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     rlights::{Light, LightType},
@@ -305,12 +306,23 @@ impl Machine for Reactor {
     reason = "more resources will be added in the future"
 )]
 pub struct Resources {
+    pub skybox: Texture2D,
     pub reactor: Model,
 }
 
 impl Resources {
     pub fn new(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
         Self {
+            skybox: {
+                let image = Image::gen_image_gradient_radial(
+                    256,
+                    256,
+                    0.1,
+                    Color::DODGERBLUE,
+                    Color::CORAL,
+                );
+                rl.load_texture_from_image(thread, &image).unwrap()
+            },
             reactor: {
                 // Mesh
                 let mesh = Mesh::gen_mesh_cube(thread, 2.0, 2.0, 3.0);
@@ -358,7 +370,7 @@ impl Resources {
                     .load_model_from_mesh(thread, unsafe { mesh.make_weak() })
                     .unwrap();
                 model.materials_mut()[0] = mat;
-                model.transform = Matrix::translate(1.0, 0.0, 1.5).into();
+                model.transform = Matrix::translate(1.0, 1.0, 1.5).into();
 
                 assert!(model.is_model_valid());
                 model
@@ -391,6 +403,95 @@ pub struct Factory {
 }
 
 impl Factory {
+    fn draw_world_grid(
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        _resources: &mut Resources,
+        player_pos: &PlayerVector3,
+        origin: &RailVector3,
+    ) {
+        const GRID_SIZE: i16 = 100;
+
+        let position_in_factory = player_pos.to_factory_relative(origin);
+
+        let player_snapped = position_in_factory.to_player_relative(player_pos, origin)
+            + Vector3::new(0.5, 0.5, 0.5);
+
+        d.draw_line3D(
+            player_snapped + BACKWARD,
+            player_snapped + FORWARD,
+            Color::BLUE,
+        );
+        d.draw_line3D(player_snapped + LEFT, player_snapped + RIGHT, Color::RED);
+        d.draw_line3D(player_snapped + DOWN, player_snapped + UP, Color::GREEN);
+        d.draw_cube_wires_v(player_snapped, Vector3::new(1.0, 1.0, 1.0), Color::WHITE);
+
+        for x in (-GRID_SIZE)..GRID_SIZE {
+            d.draw_line3D(
+                FactoryVector3 {
+                    x: x + position_in_factory.x,
+                    y: 0,
+                    z: position_in_factory.z - GRID_SIZE,
+                }
+                .to_player_relative(player_pos, origin),
+                FactoryVector3 {
+                    x: x + position_in_factory.x,
+                    y: 0,
+                    z: position_in_factory.z + GRID_SIZE,
+                }
+                .to_player_relative(player_pos, origin),
+                Color::RED,
+            );
+        }
+        for z in (-GRID_SIZE)..GRID_SIZE {
+            d.draw_line3D(
+                FactoryVector3 {
+                    x: position_in_factory.x - GRID_SIZE,
+                    y: 0,
+                    z: position_in_factory.z + z,
+                }
+                .to_player_relative(player_pos, origin),
+                FactoryVector3 {
+                    x: position_in_factory.x + GRID_SIZE,
+                    y: 0,
+                    z: position_in_factory.z + z,
+                }
+                .to_player_relative(player_pos, origin),
+                Color::BLUE,
+            );
+        }
+    }
+
+    fn draw_skybox(
+        _d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        resources: &mut Resources,
+        _player_pos: &PlayerVector3,
+        _origin: &RailVector3,
+    ) {
+        #[allow(clippy::multiple_unsafe_ops_per_block, clippy::cast_possible_wrap)]
+        // SAFETY: Manual implementation of DrawBillboardPro
+        unsafe {
+            #[allow(clippy::wildcard_imports)]
+            use ffi::*;
+            rlSetTexture(resources.skybox.id);
+            rlBegin(RL_QUADS as i32);
+            {
+                rlColor4ub(255, 255, 255, 255);
+                rlTexCoord2f(0.0, 1.0);
+                rlVertex3f(-1000.0, 50.0, -1000.0);
+                rlTexCoord2f(1.0, 1.0);
+                rlVertex3f(1000.0, 50.0, -1000.0);
+                rlTexCoord2f(1.0, 0.0);
+                rlVertex3f(1000.0, 50.0, 1000.0);
+                rlTexCoord2f(0.0, 0.0);
+                rlVertex3f(-1000.0, 50.0, 1000.0);
+            }
+            rlEnd();
+            rlSetTexture(0);
+        }
+    }
+
     pub fn draw(
         &self,
         d: &mut impl RaylibDraw3D,
@@ -399,6 +500,9 @@ impl Factory {
         player_pos: &PlayerVector3,
     ) {
         let origin = &self.origin;
+
+        Self::draw_world_grid(d, thread, resources, player_pos, origin);
+        Self::draw_skybox(d, thread, resources, player_pos, origin);
 
         let reactor_model_transform = *resources.reactor.transform();
         for reactor in &self.reactors {
@@ -409,6 +513,22 @@ impl Factory {
                 resources.reactor.materials()[0].clone(),
                 matrix,
             );
+            let bounds = reactor.bounding_box();
+            let bbox = BoundingBox {
+                min: FactoryVector3 {
+                    x: bounds.x.start,
+                    y: bounds.y.start,
+                    z: bounds.z.start,
+                }
+                .to_player_relative(player_pos, origin),
+                max: FactoryVector3 {
+                    x: bounds.x.end,
+                    y: bounds.y.end,
+                    z: bounds.z.end,
+                }
+                .to_player_relative(player_pos, origin),
+            };
+            d.draw_bounding_box(bbox, Color::MAGENTA);
         }
 
         // todo: other machines
