@@ -334,16 +334,21 @@ impl Factory {
                     m3:  0.0, m7: 0.0, m11: 0.0, m15: 1.0,
                 }
             }));
-        // d.draw_mesh(
-        //     &resources.reactor_mesh,
-        //     resources.reactor_material_weak(),
-        //     resources.reactor_transforms[0],
-        // );
-        d.draw_mesh_instanced(
-            &resources.reactor_mesh,
-            resources.reactor_material_weak(),
-            &resources.reactor_transforms,
-        );
+        if true {
+            for transform in &resources.reactor_transforms {
+                d.draw_mesh(
+                    &resources.reactor_mesh,
+                    resources.reactor_material_weak(),
+                    transform,
+                );
+            }
+        } else {
+            d.draw_mesh_instanced(
+                &resources.reactor_mesh,
+                resources.reactor_material_weak(),
+                &resources.reactor_transforms,
+            );
+        }
 
         // todo: other machines
 
