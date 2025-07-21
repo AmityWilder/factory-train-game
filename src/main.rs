@@ -9,7 +9,13 @@
     clippy::multiple_unsafe_ops_per_block
 )]
 #![warn(clippy::unnecessary_safety_doc, clippy::unnecessary_safety_comment)]
-#![feature(const_trait_impl, new_range_api, unchecked_shifts, const_ops)]
+#![feature(
+    const_trait_impl,
+    new_range_api,
+    unchecked_shifts,
+    const_ops,
+    stmt_expr_attributes
+)]
 
 use coords::FactoryVector3;
 use ordinals::Cardinal2D;
@@ -21,17 +27,15 @@ use crate::{
     input::Bindings,
 };
 
-mod ordinals;
-
-mod input;
-
-mod player;
-use player::Player;
-
 mod chem;
-
 mod factory;
+mod input;
+mod ordinals;
+mod player;
+mod rlights;
+
 use factory::{Factory, Reactor, Resources};
+use player::Player;
 
 pub const FORWARD: Vector3 = Vector3::NEG_Z;
 pub const BACKWARD: Vector3 = Vector3::Z;

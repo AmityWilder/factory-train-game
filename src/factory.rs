@@ -1,6 +1,7 @@
 use crate::{
     coords::{FactoryVector3, PlayerVector3, RailVector3},
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
+    rlights::{Light, LightType},
 };
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
@@ -244,28 +245,62 @@ impl Machine for Reactor {
 )]
 pub struct Resources {
     pub reactor_mesh: Mesh,
-    pub reactor_material: WeakMaterial,
+    pub reactor_material: Material,
     /// NOT kept up to date--ONLY for reusing the allocation.
     reactor_transforms: Vec<Matrix>,
 }
 
 impl Resources {
     pub fn new(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
+        let mut reactor_shader = rl.load_shader_from_memory(
+            thread,
+            Some(include_str!("../assets/lighting_instancing.vs")),
+            Some(include_str!("../assets/lighting.fs")),
+        );
+        assert!(reactor_shader.is_shader_valid());
+        reactor_shader.locs_mut()[ShaderLocationIndex::SHADER_LOC_MATRIX_MVP as usize] =
+            reactor_shader.get_shader_location("mvp");
+        reactor_shader.locs_mut()[ShaderLocationIndex::SHADER_LOC_VECTOR_VIEW as usize] =
+            reactor_shader.get_shader_location("viewPos");
+        reactor_shader.set_shader_value(
+            reactor_shader.locs()[ShaderLocationIndex::SHADER_LOC_VECTOR_VIEW as usize],
+            Vector3::ZERO,
+        );
+        reactor_shader.set_shader_value(
+            reactor_shader.get_shader_location("ambient"),
+            Vector4::new(0.2, 0.2, 0.2, 1.0),
+        );
+        Light::new(
+            LightType::Directional,
+            Vector3::new(0.0, 50.0, 0.0),
+            Vector3::ZERO,
+            Color::WHITE,
+            &mut reactor_shader,
+        )
+        .unwrap();
+        let image = Image::gen_image_gradient_linear(64, 64, 0, Color::GRAY, Color::LIGHTGRAY);
+        let reactor_texture = rl.load_texture_from_image(thread, &image).unwrap();
+        // SAFETY: Material loaded is unique to Resources and will not be double-freed
+        let mut reactor_material = unsafe { Material::from_raw(*rl.load_material_default(thread)) };
+        // SAFETY: Material unloads non-default shader on its own
+        *reactor_material.shader_mut() = unsafe { reactor_shader.make_weak() };
+        // SAFETY: Material unloads non-default textures on its own
+        reactor_material.set_material_texture(MaterialMapIndex::MATERIAL_MAP_ALBEDO, unsafe {
+            reactor_texture.make_weak()
+        });
+        *reactor_material.maps_mut()[MaterialMapIndex::MATERIAL_MAP_ALBEDO as usize].color_mut() =
+            Color::GRAY;
+        assert!(reactor_material.is_material_valid());
         Self {
-            reactor_mesh: Mesh::gen_mesh_cube(thread, 1.0, 1.0, 1.0),
-            reactor_material: rl.load_material_default(thread),
+            reactor_mesh: Mesh::gen_mesh_cube(thread, 2.0, 2.0, 4.0),
+            reactor_material,
             reactor_transforms: Vec::new(),
         }
     }
 
-    pub fn unload(self, rl: &mut RaylibHandle, thread: &RaylibThread) {
-        let Self {
-            reactor_mesh: _,
-            reactor_material,
-            reactor_transforms: _,
-        } = self;
-        // SAFETY: material was definitely loaded
-        unsafe { rl.unload_material(thread, reactor_material) };
+    pub fn reactor_material_weak(&self) -> WeakMaterial {
+        // SAFETY: Material and WeakMaterial are both transparent wrappers of ffi::Material
+        unsafe { std::mem::transmute_copy::<Material, WeakMaterial>(&self.reactor_material) }
     }
 }
 
@@ -291,28 +326,22 @@ impl Factory {
             .extend(self.reactors.iter().map(|reactor| {
                 let Vector3 { x, y, z } = reactor.position.to_player_relative(player_pos, origin);
                 let (cos, sin, _) = reactor.rotation.as_ordinal().cos_sin_tan();
+                #[rustfmt::skip]
                 Matrix {
-                    m0: cos,
-                    m4: 0.0,
-                    m8: sin,
-                    m12: x,
-                    m1: 0.0,
-                    m5: 1.0,
-                    m9: 0.0,
-                    m13: y,
-                    m2: -sin,
-                    m6: 0.0,
-                    m10: cos,
-                    m14: z,
-                    m3: 0.0,
-                    m7: 0.0,
-                    m11: 0.0,
-                    m15: 1.0,
+                    m0:  cos, m4: 0.0, m8:  sin, m12:   x,
+                    m1:  0.0, m5: 1.0, m9:  0.0, m13:   y,
+                    m2: -sin, m6: 0.0, m10: cos, m14:   z,
+                    m3:  0.0, m7: 0.0, m11: 0.0, m15: 1.0,
                 }
             }));
+        // d.draw_mesh(
+        //     &resources.reactor_mesh,
+        //     resources.reactor_material_weak(),
+        //     resources.reactor_transforms[0],
+        // );
         d.draw_mesh_instanced(
             &resources.reactor_mesh,
-            resources.reactor_material.clone(),
+            resources.reactor_material_weak(),
             &resources.reactor_transforms,
         );
 
