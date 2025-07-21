@@ -1,4 +1,3 @@
-use std::f32::consts::PI;
 use crate::{
     DOWN, FORWARD, RIGHT, UP,
     coords::{PlayerCoord, PlayerVector3},
@@ -9,6 +8,7 @@ use raylib::prelude::{
     glam::{EulerRot, Quat},
     *,
 };
+use std::f32::consts::PI;
 
 /// Meters per second per second
 const GRAVITY: f32 = 9.807;
@@ -51,12 +51,7 @@ impl Player {
             yaw,
             pitch,
             is_running: false,
-            camera: Camera3D::perspective(
-                camera_offset,
-                camera_target,
-                UP,
-                fovy,
-            ),
+            camera: Camera3D::perspective(camera_offset, camera_target, UP, fovy),
         }
     }
 
@@ -75,14 +70,14 @@ impl Player {
 
         // Looking around
         {
-            let pan = inputs[Look] * 0.0007;
+            let pan = -inputs[Look];
             self.yaw += pan.x;
             self.pitch += pan.y;
             self.pitch = self.pitch.clamp(-PI, PI);
-            self.yaw = self.yaw % (PI * 2.0);
+            self.yaw %= PI * 2.0;
             (self.camera.position, self.camera.target) = camera_helper(self.pitch, self.yaw);
         }
-        
+
         // Movement
         {
             const FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
@@ -128,11 +123,10 @@ impl Player {
             if vel_len_sq < 0.0001.into() {
                 // velocity dead zone
                 self.velocity = PlayerVector3::new(0, 0, 0);
-            } else {
-                if is_on_floor {
-                    // quadratic friction for soft speed cap
-                    self.velocity *= PlayerCoord::from(1) - vel_len_sq * PlayerCoord::from_f32(FRICTION);
-                }
+            } else if is_on_floor {
+                // quadratic friction for soft speed cap
+                self.velocity *=
+                    PlayerCoord::from(1) - vel_len_sq * PlayerCoord::from_f32(FRICTION);
             }
 
             self.position += self.velocity.scale(dt.into());
@@ -140,7 +134,11 @@ impl Player {
     }
 
     #[allow(clippy::unused_self, reason = "may be used in future")]
-    const fn walk_speed(&self) -> f32 { 2.2 }
+    const fn walk_speed(&self) -> f32 {
+        2.2
+    }
     #[allow(clippy::unused_self, reason = "may be used in future")]
-    const fn run_speed(&self) -> f32 { 8.6 }
+    const fn run_speed(&self) -> f32 {
+        8.6
+    }
 }
