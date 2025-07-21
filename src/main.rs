@@ -18,7 +18,7 @@ use raylib::prelude::*;
 mod coords;
 use crate::{
     coords::{PlayerVector3, RailVector3},
-    input::Bindings,
+    input::*,
 };
 
 mod ordinals;
@@ -64,7 +64,10 @@ fn main() {
         )
         .unwrap();
 
-    let bindings = Bindings::default_binds();
+    let mut bindings = Bindings::default_binds();
+    bindings[VectorInput::Look] = (KEY_RIGHT.down() - KEY_LEFT.down())
+        .cartesian(KEY_UP.down() - KEY_DOWN.down())
+        .scale(0.01);
 
     let mut player = Player::spawn(
         &mut rl,

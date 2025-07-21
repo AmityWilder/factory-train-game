@@ -1,5 +1,5 @@
 use raylib::prelude::*;
-use std::{cell::Cell, str::FromStr};
+use std::{cell::Cell, ops::Add, str::FromStr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyState {
@@ -218,6 +218,7 @@ impl<T: Into<Self>> std::ops::Sub<T> for EventSource {
 #[derive(Debug)]
 pub enum AxisSource {
     Constant(f32),
+    DeltaTime,
     Map(Box<(EventSource, AxisSource, AxisSource)>),
     Subtract(Box<(EventSource, EventSource)>),
     Neg(Box<AxisSource>),
@@ -243,6 +244,7 @@ impl AxisSource {
     fn get(&self, rl: &RaylibHandle) -> f32 {
         match self {
             &Self::Constant(val) => val,
+            Self::DeltaTime => rl.get_frame_time(),
             Self::Map(src) => {
                 if src.0.get(rl) {
                     src.1.get(rl)
@@ -338,8 +340,12 @@ pub enum VectorSource {
     Constant(Vector2),
     Cartesian(Box<(AxisSource, AxisSource)>),
     Polar(Box<(AxisSource, AxisSource)>),
+    Negate(Box<VectorSource>),
     Normalize(Box<VectorSource>),
     Rotate(Box<(VectorSource, AxisSource)>),
+    Scale(Box<(VectorSource, AxisSource)>),
+    Sum(Vec<VectorSource>),
+    Product(Vec<VectorSource>),
     Reflect(Box<(VectorSource, VectorSource)>),
     MouseWheel,
     Mouse,
@@ -357,8 +363,12 @@ impl VectorSource {
             &Self::Constant(val) => val,
             Self::Cartesian(src) => Vector2::new(src.0.get(rl), src.1.get(rl)),
             Self::Polar(src) => Vector2::from_angle(src.0.get(rl)) * src.1.get(rl),
-            Self::Normalize(src) => src.get(rl).normalize(),
+            Self::Negate(src) => -src.get(rl),
+            Self::Normalize(src) => src.get(rl).normalize_or_zero(),
             Self::Rotate(src) => Vector2::from_angle(src.1.get(rl)).rotate(src.0.get(rl)),
+            Self::Scale(src) => src.0.get(rl) * src.1.get(rl),
+            Self::Sum(src) => src.iter().map(|src| src.get(rl)).sum(),
+            Self::Product(src) => src.iter().map(|src| src.get(rl)).product(),
             Self::Reflect(src) => src.0.get(rl).reflect(src.1.get(rl)),
             Self::MouseWheel => rl.get_mouse_wheel_move_v(),
             Self::Mouse => rl.get_mouse_delta(),
@@ -374,6 +384,10 @@ impl VectorSource {
     #[inline]
     pub fn rotate(self, angle: impl Into<AxisSource>) -> VectorSource {
         VectorSource::Rotate(Box::new((self, angle.into())))
+    }
+    #[inline]
+    pub fn scale(self, amount: impl Into<AxisSource>) -> VectorSource {
+        VectorSource::Scale(Box::new((self, amount.into())))
     }
     #[inline]
     pub fn reflect(self, across: impl Into<Self>) -> VectorSource {
@@ -399,6 +413,42 @@ impl VectorSource {
     #[inline]
     pub fn dot(self, rhs: impl Into<Self>) -> AxisSource {
         AxisSource::Dot(Box::new((self, rhs.into())))
+    }
+}
+
+impl std::ops::Neg for VectorSource {
+    type Output = Self;
+
+    #[inline]
+    fn neg(self) -> Self::Output {
+        Self::Negate(Box::new(self))
+    }
+}
+
+impl<T: Into<AxisSource>> std::ops::Mul<T> for VectorSource {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: T) -> Self::Output {
+        Self::Scale(Box::new((self, rhs.into())))
+    }
+}
+
+impl std::ops::Add for VectorSource {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::Sum(vec![self, rhs])
+    }
+}
+
+impl std::ops::Mul for VectorSource {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self::Product(vec![self, rhs])
     }
 }
 
@@ -501,7 +551,8 @@ impl Bindings {
         result[VectorInput::Walk] = (KEY_D.down() - KEY_A.down())
             .cartesian(KEY_W.down() - KEY_S.down())
             .normalize();
-        result[VectorInput::Look] = VectorSource::Mouse;
+        result[VectorInput::Look] =
+            VectorSource::Mouse.scale(/* Mouse sensitivity */ AxisSource::Constant(0.0007));
         result[EventInput::Sprint] = KEY_LEFT_SHIFT.down() | KEY_RIGHT_SHIFT.down();
         result[EventInput::Jump] = KEY_SPACE.pressed();
         result[EventInput::NextItem] = VectorSource::MouseWheel.max_magnitude().gt(0.0);
