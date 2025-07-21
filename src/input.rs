@@ -552,7 +552,7 @@ impl Bindings {
             .cartesian(KEY_W.down() - KEY_S.down())
             .normalize();
         result[VectorInput::Look] =
-            VectorSource::Mouse.scale(/* Mouse sensitivity */ AxisSource::Constant(0.0007));
+            VectorSource::Mouse.scale(/* Mouse sensitivity */ AxisSource::Constant(0.001));
         result[EventInput::Sprint] = KEY_LEFT_SHIFT.down() | KEY_RIGHT_SHIFT.down();
         result[EventInput::Jump] = KEY_SPACE.pressed();
         result[EventInput::NextItem] = VectorSource::MouseWheel.max_magnitude().gt(0.0);

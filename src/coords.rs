@@ -1,6 +1,9 @@
 use fixed_point::Q32_32;
 use raylib::prelude::Vector3;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::{
+    assert_matches::debug_assert_matches,
+    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
+};
 
 pub type PlayerCoord = Q32_32;
 
@@ -19,6 +22,8 @@ impl std::fmt::UpperHex for PlayerVector3 {
 }
 
 impl PlayerVector3 {
+    pub const ZERO: Self = Self::new(0, 0, 0);
+
     /// Construct a position from integers
     pub const fn new(x: i32, y: i32, z: i32) -> Self {
         Self {
@@ -46,6 +51,43 @@ impl PlayerVector3 {
             y: self.y.to_f32(),
             z: self.z.to_f32(),
         }
+    }
+
+    /// Convert to renderer vector
+    #[inline]
+    #[cfg(debug_assertions)]
+    pub fn to_factory_relative(self, origin: RailVector3) -> FactoryVector3 {
+        const I16_MIN: i32 = i16::MIN as i32;
+        const I16_MAX: i32 = i16::MAX as i32;
+        let rail = RailVector3 {
+            x: self.x.to_i32() - origin.x,
+            y: self.y.to_i32() - origin.y,
+            z: self.z.to_i32() - origin.z,
+        };
+        debug_assert_matches!(
+            rail,
+            RailVector3 {
+                x: I16_MIN..=I16_MAX,
+                y: I16_MIN..=I16_MAX,
+                z: I16_MIN..=I16_MAX,
+            }
+        );
+        FactoryVector3 {
+            x: rail.x as i16,
+            y: rail.y as i16,
+            z: rail.z as i16,
+        }
+    }
+
+    /// Convert to renderer vector
+    #[inline]
+    #[cfg(not(debug_assertions))]
+    pub const fn to_factory_relative(self, origin: RailVector3) -> FactoryVector3 {
+        let rail = RailVector3 {
+            x: (self.x.to_i32() - origin.x) as i16,
+            y: (self.y.to_i32() - origin.y) as i16,
+            z: (self.z.to_i32() - origin.z) as i16,
+        };
     }
 
     /// Add a vectors

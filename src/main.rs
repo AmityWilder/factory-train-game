@@ -14,7 +14,9 @@
     new_range_api,
     unchecked_shifts,
     const_ops,
-    stmt_expr_attributes
+    stmt_expr_attributes,
+    custom_inner_attributes,
+    assert_matches
 )]
 
 use coords::FactoryVector3;
@@ -68,10 +70,10 @@ fn main() {
         )
         .unwrap();
 
-    let mut bindings = Bindings::default_binds();
-    bindings[VectorInput::Look] = (KEY_RIGHT.down() - KEY_LEFT.down())
-        .cartesian(KEY_UP.down() - KEY_DOWN.down())
-        .scale(0.01);
+    let bindings = Bindings::default_binds();
+    // bindings[VectorInput::Look] = (KEY_RIGHT.down() - KEY_LEFT.down())
+    //     .cartesian(KEY_UP.down() - KEY_DOWN.down())
+    //     .scale(0.02);
 
     let mut player = Player::spawn(
         &mut rl,

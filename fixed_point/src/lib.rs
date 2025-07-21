@@ -67,6 +67,12 @@ impl std::fmt::Display for Q32_32 {
 }
 
 impl Q32_32 {
+    pub const ZERO: Self = Self::from_i32(0);
+    pub const ONE: Self = Self::from_i32(1);
+    pub const NEG_ONE: Self = Self::from_i32(-1);
+    pub const MIN: Self = Self::new(i32::MIN, u32::MIN);
+    pub const MAX: Self = Self::new(i32::MAX, u32::MAX);
+
     const DECIMAL_BITS: u32 = 32;
     const DECIMAL_FACTOR_INT: u64 = 1 << Self::DECIMAL_BITS;
     const DECIMAL_FACTOR_ISQRT: u64 = Self::DECIMAL_FACTOR_INT.isqrt();
@@ -92,7 +98,12 @@ impl Q32_32 {
     }
 
     #[inline]
-    pub fn from_f32(value: f32) -> Self {
+    pub const fn to_i32(self) -> i32 {
+        (self.0 >> Self::DECIMAL_BITS) as i32
+    }
+
+    #[inline]
+    pub const fn from_f32(value: f32) -> Self {
         Self((value as f64 * Self::DECIMAL_FACTOR) as i64)
     }
 

@@ -5,7 +5,7 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
-use std::num::NonZeroU8;
+use std::{num::NonZeroU8, ops::RangeBounds};
 
 /// The direction items are transfered through a node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -116,12 +116,43 @@ pub struct Pipe {
     pub b: PipeNode,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MachineSize {
+    pub width: NonZeroU8,
+    pub height: NonZeroU8,
+    pub length: NonZeroU8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MachineBounds {
+    pub x: std::ops::Range<i16>,
+    pub y: std::ops::Range<i16>,
+    pub z: std::ops::Range<i16>,
+}
+
+impl MachineSize {
+    /// # Safety
+    ///
+    /// All parameters must be non-zero
+    #[inline]
+    pub const unsafe fn new_unchecked(width: u8, height: u8, length: u8) -> Self {
+        Self {
+            // SAFETY: Caller must uphold safety contract
+            width: unsafe { NonZeroU8::new_unchecked(width) },
+            // SAFETY: Caller must uphold safety contract
+            height: unsafe { NonZeroU8::new_unchecked(height) },
+            // SAFETY: Caller must uphold safety contract
+            length: unsafe { NonZeroU8::new_unchecked(length) },
+        }
+    }
+}
+
 #[const_trait]
 pub trait Clearance {
     /// The dimensions of the machine in meters.
     /// `[length, width, height]`
     #[must_use]
-    fn clearance(&self) -> [NonZeroU8; 3];
+    fn clearance(&self) -> MachineSize;
 }
 
 pub trait Machine: Clearance {
@@ -152,6 +183,9 @@ pub trait Machine: Clearance {
     fn pipe_nodes(&self) -> ArrayVec<PipeNode, 8> {
         ArrayVec::new()
     }
+
+    #[must_use]
+    fn bounding_box(&self) -> MachineBounds;
 }
 
 /// Reacts two solutions
@@ -163,15 +197,9 @@ pub struct Reactor {
 
 impl const Clearance for Reactor {
     #[inline]
-    fn clearance(&self) -> [NonZeroU8; 3] {
-        [
-            // SAFETY: 2 is not zero
-            unsafe { NonZeroU8::new_unchecked(2) },
-            // SAFETY: 2 is not zero
-            unsafe { NonZeroU8::new_unchecked(2) },
-            // SAFETY: 3 is not zero
-            unsafe { NonZeroU8::new_unchecked(3) },
-        ]
+    fn clearance(&self) -> MachineSize {
+        // SAFETY: 2 and 3 are not zero
+        unsafe { MachineSize::new_unchecked(2, 2, 3) }
     }
 }
 
@@ -183,14 +211,19 @@ impl Machine for Reactor {
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
     ) {
-        let [width, height, length] = self.clearance().map(|x| x.get().into());
+        let size = self.clearance();
         let player_rel_pos = self.position.to_player_relative(player_pos, factory_origin);
-        d.draw_cube(player_rel_pos, width, height, length, Color::GRAY);
+        d.draw_cube(
+            player_rel_pos,
+            size.width.get().into(),
+            size.height.get().into(),
+            size.length.get().into(),
+            Color::GRAY,
+        );
     }
 
     fn belt_inputs(&self) -> ArrayVec<BeltInputNode, 8> {
         let mut arr = ArrayVec::new();
-        let [_width, _height, _length] = self.clearance();
         arr.push(BeltInputNode(BeltNode {
             position: self.position + FactoryVector3 { x: 0, y: 0, z: 0 },
             rotation: self.rotation.as_ordinal(),
@@ -200,7 +233,7 @@ impl Machine for Reactor {
 
     fn belt_outputs(&self) -> ArrayVec<BeltOutputNode, 8> {
         let mut arr = ArrayVec::new();
-        let [_width, _height, length] = self.clearance();
+        let MachineSize { length, .. } = self.clearance();
         arr.push(BeltOutputNode(BeltNode {
             position: self.position
                 + FactoryVector3 {
@@ -215,7 +248,7 @@ impl Machine for Reactor {
 
     fn pipe_nodes(&self) -> ArrayVec<PipeNode, 8> {
         let mut arr = ArrayVec::new();
-        let [width, _height, length] = self.clearance();
+        let MachineSize { width, length, .. } = self.clearance();
         arr.push(PipeNode {
             position: self.position
                 + FactoryVector3 {
@@ -236,6 +269,34 @@ impl Machine for Reactor {
         });
         arr
     }
+
+    fn bounding_box(&self) -> MachineBounds {
+        let FactoryVector3 { x, y, z } = self.position;
+        let MachineSize {
+            width,
+            height,
+            length,
+        } = self.clearance();
+        let width: i16 = width.get().into();
+        let height: i16 = height.get().into();
+        let length: i16 = length.get().into();
+        let (cos, sin, _) = self.rotation.cos_sin_tan();
+        let (cos, sin) = (cos as i16, sin as i16);
+        let width = cos * width + sin * length;
+        let length = sin * width + cos * length;
+        let (mut xs, mut zs) = ([x, x + width], [z, z + length]);
+        for a in [&mut xs, &mut zs] {
+            if !a.is_sorted() {
+                a.reverse();
+            }
+        }
+        let ([xmin, xmax], [zmin, zmax]) = (xs, zs);
+        MachineBounds {
+            x: (xmin..xmax),
+            y: (y..y + height),
+            z: (zmin..zmax),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -244,63 +305,82 @@ impl Machine for Reactor {
     reason = "more resources will be added in the future"
 )]
 pub struct Resources {
-    pub reactor_mesh: Mesh,
-    pub reactor_material: Material,
-    /// NOT kept up to date--ONLY for reusing the allocation.
-    reactor_transforms: Vec<Matrix>,
+    pub reactor: Model,
 }
 
 impl Resources {
     pub fn new(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
-        let mut reactor_shader = rl.load_shader_from_memory(
-            thread,
-            Some(include_str!("../assets/lighting_instancing.vs")),
-            Some(include_str!("../assets/lighting.fs")),
-        );
-        assert!(reactor_shader.is_shader_valid());
-        reactor_shader.locs_mut()[ShaderLocationIndex::SHADER_LOC_MATRIX_MVP as usize] =
-            reactor_shader.get_shader_location("mvp");
-        reactor_shader.locs_mut()[ShaderLocationIndex::SHADER_LOC_VECTOR_VIEW as usize] =
-            reactor_shader.get_shader_location("viewPos");
-        reactor_shader.set_shader_value(
-            reactor_shader.locs()[ShaderLocationIndex::SHADER_LOC_VECTOR_VIEW as usize],
-            Vector3::ZERO,
-        );
-        reactor_shader.set_shader_value(
-            reactor_shader.get_shader_location("ambient"),
-            Vector4::new(0.2, 0.2, 0.2, 1.0),
-        );
-        Light::new(
-            LightType::Directional,
-            Vector3::new(0.0, 50.0, 0.0),
-            Vector3::ZERO,
-            Color::WHITE,
-            &mut reactor_shader,
-        )
-        .unwrap();
-        let image = Image::gen_image_gradient_linear(64, 64, 0, Color::GRAY, Color::LIGHTGRAY);
-        let reactor_texture = rl.load_texture_from_image(thread, &image).unwrap();
-        // SAFETY: Material loaded is unique to Resources and will not be double-freed
-        let mut reactor_material = unsafe { Material::from_raw(*rl.load_material_default(thread)) };
-        // SAFETY: Material unloads non-default shader on its own
-        *reactor_material.shader_mut() = unsafe { reactor_shader.make_weak() };
-        // SAFETY: Material unloads non-default textures on its own
-        reactor_material.set_material_texture(MaterialMapIndex::MATERIAL_MAP_ALBEDO, unsafe {
-            reactor_texture.make_weak()
-        });
-        *reactor_material.maps_mut()[MaterialMapIndex::MATERIAL_MAP_ALBEDO as usize].color_mut() =
-            Color::GRAY;
-        assert!(reactor_material.is_material_valid());
         Self {
-            reactor_mesh: Mesh::gen_mesh_cube(thread, 2.0, 2.0, 4.0),
-            reactor_material,
-            reactor_transforms: Vec::new(),
+            reactor: {
+                // Mesh
+                let mesh = Mesh::gen_mesh_cube(thread, 2.0, 2.0, 3.0);
+
+                let mut mat = rl.load_material_default(thread);
+
+                // Shader
+                let mut shader = rl.load_shader_from_memory(
+                    thread,
+                    Some(include_str!("../assets/lighting.vs")),
+                    Some(include_str!("../assets/lighting.fs")),
+                );
+                assert!(shader.is_shader_valid());
+                shader.set_shader_value(
+                    shader.get_shader_location("ambient"),
+                    Vector4::new(0.2, 0.2, 0.2, 1.0),
+                );
+                Light::new(
+                    LightType::Directional,
+                    Vector3::new(0.0, 50.0, 0.0),
+                    Vector3::ZERO,
+                    Color::WHITE,
+                    &mut shader,
+                )
+                .unwrap();
+                // SAFETY: Material unloads non-default shader on its own
+                *mat.shader_mut() = unsafe { shader.make_weak() };
+
+                // Color
+                *mat.maps_mut()[MaterialMapIndex::MATERIAL_MAP_ALBEDO as usize].color_mut() =
+                    Color::GRAY;
+
+                // Texture
+                let image =
+                    Image::gen_image_gradient_linear(64, 64, 0, Color::GRAY, Color::LIGHTGRAY);
+                let reactor_texture = rl.load_texture_from_image(thread, &image).unwrap();
+                // SAFETY: Material unloads non-default textures on its own
+                mat.set_material_texture(MaterialMapIndex::MATERIAL_MAP_ALBEDO, unsafe {
+                    reactor_texture.make_weak()
+                });
+                assert!(mat.is_material_valid());
+
+                // SAFETY: Model unloads meshes on its own
+                let mut model = rl
+                    .load_model_from_mesh(thread, unsafe { mesh.make_weak() })
+                    .unwrap();
+                model.materials_mut()[0] = mat;
+                model.transform = Matrix::translate(1.0, 0.0, 1.5).into();
+
+                assert!(model.is_model_valid());
+                model
+            },
         }
     }
+}
 
-    pub fn reactor_material_weak(&self) -> WeakMaterial {
-        // SAFETY: Material and WeakMaterial are both transparent wrappers of ffi::Material
-        unsafe { std::mem::transmute_copy::<Material, WeakMaterial>(&self.reactor_material) }
+pub const fn machine_matrix(
+    player_pos: &PlayerVector3,
+    position: FactoryVector3,
+    origin: &RailVector3,
+    rotation: Cardinal2D,
+) -> Matrix {
+    let Vector3 { x, y, z } = position.to_player_relative(player_pos, origin);
+    let (cos, sin, _) = rotation.cos_sin_tan();
+    #[rustfmt::skip]
+    Matrix {
+        m0:  cos, m4: 0.0, m8:  sin, m12:   x,
+        m1:  0.0, m5: 1.0, m9:  0.0, m13:   y,
+        m2: -sin, m6: 0.0, m10: cos, m14:   z,
+        m3:  0.0, m7: 0.0, m11: 0.0, m15: 1.0,
     }
 }
 
@@ -320,33 +400,14 @@ impl Factory {
     ) {
         let origin = &self.origin;
 
-        resources.reactor_transforms.clear();
-        resources
-            .reactor_transforms
-            .extend(self.reactors.iter().map(|reactor| {
-                let Vector3 { x, y, z } = reactor.position.to_player_relative(player_pos, origin);
-                let (cos, sin, _) = reactor.rotation.as_ordinal().cos_sin_tan();
-                #[rustfmt::skip]
-                Matrix {
-                    m0:  cos, m4: 0.0, m8:  sin, m12:   x,
-                    m1:  0.0, m5: 1.0, m9:  0.0, m13:   y,
-                    m2: -sin, m6: 0.0, m10: cos, m14:   z,
-                    m3:  0.0, m7: 0.0, m11: 0.0, m15: 1.0,
-                }
-            }));
-        if true {
-            for transform in &resources.reactor_transforms {
-                d.draw_mesh(
-                    &resources.reactor_mesh,
-                    resources.reactor_material_weak(),
-                    transform,
-                );
-            }
-        } else {
-            d.draw_mesh_instanced(
-                &resources.reactor_mesh,
-                resources.reactor_material_weak(),
-                &resources.reactor_transforms,
+        let reactor_model_transform = *resources.reactor.transform();
+        for reactor in &self.reactors {
+            let matrix = machine_matrix(player_pos, reactor.position, origin, reactor.rotation)
+                * reactor_model_transform;
+            d.draw_mesh(
+                &resources.reactor.meshes()[0],
+                resources.reactor.materials()[0].clone(),
+                matrix,
             );
         }
 

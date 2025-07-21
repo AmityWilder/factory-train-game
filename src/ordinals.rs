@@ -1,3 +1,4 @@
+#![rustfmt::skip]
 use raylib::prelude::*;
 
 /// A 2D cardinal direction
@@ -29,6 +30,17 @@ impl Cardinal2D {
             Self::North => Cardinal3D::North,
             Self::West  => Cardinal3D::West,
             Self::South => Cardinal3D::South,
+        }
+    }
+
+    /// Calculates the sine, cosine, and tangent of the orientation simultaneously
+    #[inline]
+    pub const fn cos_sin_tan(self) -> (f32, f32, f32) {
+        match self {
+            Self::East  => ( 1.0,  0.0,                0.0),
+            Self::North => ( 0.0,  1.0,  f32::    INFINITY),
+            Self::West  => (-1.0,  0.0, -              0.0),
+            Self::South => ( 0.0, -1.0,  f32::NEG_INFINITY),
         }
     }
 
@@ -77,9 +89,9 @@ impl Ordinal2D {
     #[inline]
     pub const fn try_as_cardinal(self) -> Option<Cardinal2D> {
         match self {
-            Self::East  => Some(Cardinal2D::East ),
+            Self::East  => Some(Cardinal2D::East),
             Self::North => Some(Cardinal2D::North),
-            Self::West  => Some(Cardinal2D::West ),
+            Self::West  => Some(Cardinal2D::West),
             Self::South => Some(Cardinal2D::South),
             _ => None,
         }
