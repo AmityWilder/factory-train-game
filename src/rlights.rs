@@ -1,5 +1,6 @@
 //! raylib.lights - Some useful functions to deal with lights data
 //!
+#![allow(clippy::doc_markdown, reason = "that's not a type, dumbass")]
 //! Rewritten in Rust by Amy Wilder (@AmityWilder)
 //!
 //! LICENSE: zlib/libpng

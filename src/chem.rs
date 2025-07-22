@@ -23,6 +23,8 @@ pub const ELECTRON_MASS: f64 = 5.485_799_090_701_6e-4;
 // D: Clover
 // F: 8 knotted balloons
 
+// Steric number describes molecular geometry
+
 // valance electrons are always the same in a single column of the periodic table
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -314,7 +316,10 @@ pub enum SubLevel {
     _6S = 6 << 2, _6P = (6 << 2) | 1, _6D = (6 << 2) | 2,
     _7S = 7 << 2, _7P = (7 << 2) | 1,
 }
-#[allow(clippy::enum_glob_use)]
+#[allow(
+    clippy::enum_glob_use,
+    reason = "I'm using all of them and don't want to repeat them"
+)]
 use SubLevel::*;
 
 impl std::fmt::Display for SubLevel {

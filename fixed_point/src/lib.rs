@@ -113,6 +113,16 @@ impl Q32_32 {
     }
 
     #[inline]
+    pub const fn abs(self) -> Self {
+        Self(self.0.abs())
+    }
+
+    #[inline]
+    pub const fn negate(self) -> Self {
+        Self(-self.0)
+    }
+
+    #[inline]
     pub const fn plus(self, rhs: Self) -> Self {
         Self(self.0 + rhs.0)
     }
@@ -151,6 +161,15 @@ impl From<i32> for Q32_32 {
     #[inline]
     fn from(value: i32) -> Self {
         Self::from_i32(value)
+    }
+}
+
+impl Neg for Q32_32 {
+    type Output = Self;
+
+    #[inline]
+    fn neg(self) -> Self::Output {
+        self.negate()
     }
 }
 

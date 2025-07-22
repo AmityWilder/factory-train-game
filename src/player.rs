@@ -1,7 +1,6 @@
 use crate::{
-    DOWN, FORWARD, RIGHT, UP,
-    coords::{PlayerCoord, PlayerVector3},
-    factory::{Clearance, Factory, Machine},
+    coords::{DOWN, FORWARD, PlayerCoord, PlayerVector3, RIGHT, UP},
+    factory::{Factory, Machine},
     input::{self, Inputs},
 };
 use raylib::prelude::{
@@ -85,7 +84,7 @@ impl Player {
         {
             const WORLD_FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
 
-            let position_in_factory = self.position.to_factory_relative(&current_factory.origin);
+            let position_in_factory = self.position.to_factory(&current_factory.origin).unwrap();
 
             let local_floor = current_factory
                 .reactors
@@ -140,7 +139,7 @@ impl Player {
 
             self.velocity += force.scale(dt.into());
 
-            let vel_len_sq = self.velocity.length_squared();
+            let vel_len_sq = self.velocity.length_sqr();
             if vel_len_sq < 0.0001.into() {
                 // velocity dead zone
                 self.velocity = PlayerVector3::ZERO;

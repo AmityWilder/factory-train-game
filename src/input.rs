@@ -1,5 +1,5 @@
 use raylib::prelude::*;
-use std::{cell::Cell, ops::Add, str::FromStr};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyState {
@@ -106,7 +106,7 @@ pub enum EventSource {
     Nor(Vec<EventSource>),
     Xor(Box<(EventSource, EventSource)>),
     Xnor(Box<(EventSource, EventSource)>),
-    Toggle(Box<EventSource>, Cell<bool>),
+    Toggle(Box<EventSource>, bool),
     Eq(Box<(AxisSource, AxisSource, AxisSource)>),
     Ne(Box<(AxisSource, AxisSource, AxisSource)>),
     Gt(Box<(AxisSource, AxisSource)>),
@@ -125,46 +125,46 @@ impl From<bool> for EventSource {
 }
 
 impl EventSource {
-    fn get(&self, rl: &RaylibHandle) -> bool {
+    fn check(&mut self, rl: &RaylibHandle) -> bool {
         match self {
-            &Self::Constant(val) => val,
-            Self::Not(src) => !src.get(rl),
-            Self::And(src) => src.iter().all(|src| src.get(rl)),
-            Self::Nand(src) => !src.iter().all(|src| src.get(rl)),
-            Self::Or(src) => src.iter().any(|src| src.get(rl)),
-            Self::Nor(src) => !src.iter().any(|src| src.get(rl)),
-            Self::Xor(src) => src.0.get(rl) != src.1.get(rl),
-            Self::Xnor(src) => src.0.get(rl) == src.1.get(rl),
+            Self::Constant(val) => *val,
+            Self::Not(src) => !src.check(rl),
+            Self::And(src) => src.iter_mut().all(|src| src.check(rl)),
+            Self::Nand(src) => !src.iter_mut().all(|src| src.check(rl)),
+            Self::Or(src) => src.iter_mut().any(|src| src.check(rl)),
+            Self::Nor(src) => !src.iter_mut().any(|src| src.check(rl)),
+            Self::Xor(src) => src.0.check(rl) != src.1.check(rl),
+            Self::Xnor(src) => src.0.check(rl) == src.1.check(rl),
             Self::Toggle(src, mem) => {
-                if src.get(rl) {
-                    mem.set(!mem.get());
+                if src.check(rl) {
+                    *mem = !*mem;
                 }
-                mem.get()
+                *mem
             }
-            Self::Eq(src) => (src.0.get(rl) - src.1.get(rl)).abs() <= src.2.get(rl),
-            Self::Ne(src) => (src.0.get(rl) - src.1.get(rl)).abs() > src.2.get(rl),
-            Self::Gt(src) => src.0.get(rl) > src.1.get(rl),
-            Self::Ge(src) => src.0.get(rl) >= src.1.get(rl),
-            Self::Lt(src) => src.0.get(rl) < src.1.get(rl),
-            Self::Le(src) => src.0.get(rl) <= src.1.get(rl),
-            &Self::KeyboardKey(state, key) => match state {
-                KeyState::Down => rl.is_key_down(key),
-                KeyState::Released => rl.is_key_released(key),
-                KeyState::Up => rl.is_key_up(key),
-                KeyState::Pressed => rl.is_key_pressed(key),
-                KeyState::PressedRepeat => rl.is_key_pressed_repeat(key),
+            Self::Eq(src) => (src.0.check(rl) - src.1.check(rl)).abs() <= src.2.check(rl),
+            Self::Ne(src) => (src.0.check(rl) - src.1.check(rl)).abs() > src.2.check(rl),
+            Self::Gt(src) => src.0.check(rl) > src.1.check(rl),
+            Self::Ge(src) => src.0.check(rl) >= src.1.check(rl),
+            Self::Lt(src) => src.0.check(rl) < src.1.check(rl),
+            Self::Le(src) => src.0.check(rl) <= src.1.check(rl),
+            Self::KeyboardKey(state, key) => match *state {
+                KeyState::Down => rl.is_key_down(*key),
+                KeyState::Released => rl.is_key_released(*key),
+                KeyState::Up => rl.is_key_up(*key),
+                KeyState::Pressed => rl.is_key_pressed(*key),
+                KeyState::PressedRepeat => rl.is_key_pressed_repeat(*key),
             },
-            &Self::MouseButton(state, button) => match state {
-                ButtonState::Down => rl.is_mouse_button_down(button),
-                ButtonState::Released => rl.is_mouse_button_released(button),
-                ButtonState::Up => rl.is_mouse_button_up(button),
-                ButtonState::Pressed => rl.is_mouse_button_pressed(button),
+            Self::MouseButton(state, button) => match *state {
+                ButtonState::Down => rl.is_mouse_button_down(*button),
+                ButtonState::Released => rl.is_mouse_button_released(*button),
+                ButtonState::Up => rl.is_mouse_button_up(*button),
+                ButtonState::Pressed => rl.is_mouse_button_pressed(*button),
             },
-            &Self::GamepadButton(state, gamepad, button) => match state {
-                ButtonState::Down => rl.is_gamepad_button_down(gamepad, button),
-                ButtonState::Released => rl.is_gamepad_button_released(gamepad, button),
-                ButtonState::Up => rl.is_gamepad_button_up(gamepad, button),
-                ButtonState::Pressed => rl.is_gamepad_button_pressed(gamepad, button),
+            Self::GamepadButton(state, gamepad, button) => match *state {
+                ButtonState::Down => rl.is_gamepad_button_down(*gamepad, *button),
+                ButtonState::Released => rl.is_gamepad_button_released(*gamepad, *button),
+                ButtonState::Up => rl.is_gamepad_button_up(*gamepad, *button),
+                ButtonState::Pressed => rl.is_gamepad_button_pressed(*gamepad, *button),
             },
         }
     }
@@ -241,32 +241,32 @@ impl From<f32> for AxisSource {
 }
 
 impl AxisSource {
-    fn get(&self, rl: &RaylibHandle) -> f32 {
+    fn check(&mut self, rl: &RaylibHandle) -> f32 {
         match self {
-            &Self::Constant(val) => val,
+            Self::Constant(val) => *val,
             Self::DeltaTime => rl.get_frame_time(),
             Self::Map(src) => {
-                if src.0.get(rl) {
-                    src.1.get(rl)
+                if src.0.check(rl) {
+                    src.1.check(rl)
                 } else {
-                    src.2.get(rl)
+                    src.2.check(rl)
                 }
             }
-            Self::Subtract(src) => f32::from(i8::from(src.0.get(rl)) - i8::from(src.1.get(rl))),
-            Self::Neg(src) => -src.get(rl),
-            Self::Abs(src) => src.get(rl).abs(),
-            Self::Recip(src) => src.get(rl).recip(),
-            Self::Product(src) => src.iter().map(|src| src.get(rl)).product(),
-            Self::Sum(src) => src.iter().map(|src| src.get(rl)).sum(),
-            Self::X(src) => src.get(rl).x,
-            Self::Y(src) => src.get(rl).y,
+            Self::Subtract(src) => f32::from(i8::from(src.0.check(rl)) - i8::from(src.1.check(rl))),
+            Self::Neg(src) => -src.check(rl),
+            Self::Abs(src) => src.check(rl).abs(),
+            Self::Recip(src) => src.check(rl).recip(),
+            Self::Product(src) => src.iter_mut().map(|src| src.check(rl)).product(),
+            Self::Sum(src) => src.iter_mut().map(|src| src.check(rl)).sum(),
+            Self::X(src) => src.check(rl).x,
+            Self::Y(src) => src.check(rl).y,
             Self::MaxMagnitude(src) => {
-                let val = src.get(rl);
+                let val = src.check(rl);
                 val[val.abs().max_position()]
             }
-            Self::Magnitude(src) => src.get(rl).length(),
-            Self::Dot(src) => src.0.get(rl).dot(src.1.get(rl)),
-            &Self::GamepadAxis(gamepad, axis) => rl.get_gamepad_axis_movement(gamepad, axis),
+            Self::Magnitude(src) => src.check(rl).length(),
+            Self::Dot(src) => src.0.check(rl).dot(src.1.check(rl)),
+            Self::GamepadAxis(gamepad, axis) => rl.get_gamepad_axis_movement(*gamepad, *axis),
         }
     }
 }
@@ -358,18 +358,18 @@ impl From<Vector2> for VectorSource {
 }
 
 impl VectorSource {
-    fn get(&self, rl: &RaylibHandle) -> Vector2 {
+    fn check(&mut self, rl: &RaylibHandle) -> Vector2 {
         match self {
-            &Self::Constant(val) => val,
-            Self::Cartesian(src) => Vector2::new(src.0.get(rl), src.1.get(rl)),
-            Self::Polar(src) => Vector2::from_angle(src.0.get(rl)) * src.1.get(rl),
-            Self::Negate(src) => -src.get(rl),
-            Self::Normalize(src) => src.get(rl).normalize_or_zero(),
-            Self::Rotate(src) => Vector2::from_angle(src.1.get(rl)).rotate(src.0.get(rl)),
-            Self::Scale(src) => src.0.get(rl) * src.1.get(rl),
-            Self::Sum(src) => src.iter().map(|src| src.get(rl)).sum(),
-            Self::Product(src) => src.iter().map(|src| src.get(rl)).product(),
-            Self::Reflect(src) => src.0.get(rl).reflect(src.1.get(rl)),
+            Self::Constant(val) => *val,
+            Self::Cartesian(src) => Vector2::new(src.0.check(rl), src.1.check(rl)),
+            Self::Polar(src) => Vector2::from_angle(src.0.check(rl)) * src.1.check(rl),
+            Self::Negate(src) => -src.check(rl),
+            Self::Normalize(src) => src.check(rl).normalize_or_zero(),
+            Self::Rotate(src) => Vector2::from_angle(src.1.check(rl)).rotate(src.0.check(rl)),
+            Self::Scale(src) => src.0.check(rl) * src.1.check(rl),
+            Self::Sum(src) => src.iter_mut().map(|src| src.check(rl)).sum(),
+            Self::Product(src) => src.iter_mut().map(|src| src.check(rl)).product(),
+            Self::Reflect(src) => src.0.check(rl).reflect(src.1.check(rl)),
             Self::MouseWheel => rl.get_mouse_wheel_move_v(),
             Self::Mouse => rl.get_mouse_delta(),
         }
@@ -560,11 +560,11 @@ impl Bindings {
         result
     }
 
-    pub fn get(&self, rl: &RaylibHandle) -> Inputs {
+    pub fn check(&mut self, rl: &RaylibHandle) -> Inputs {
         Inputs {
-            event: std::array::from_fn(|idx| self.event[idx].get(rl)),
-            axis: std::array::from_fn(|idx| self.axis[idx].get(rl)),
-            vector: std::array::from_fn(|idx| self.vector[idx].get(rl)),
+            event: std::array::from_fn(|idx| self.event[idx].check(rl)),
+            axis: std::array::from_fn(|idx| self.axis[idx].check(rl)),
+            vector: std::array::from_fn(|idx| self.vector[idx].check(rl)),
         }
     }
 }

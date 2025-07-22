@@ -1,12 +1,13 @@
 use crate::{
-    BACKWARD, DOWN, FORWARD, LEFT, RIGHT, UP,
-    coords::{FactoryVector3, PlayerVector3, RailVector3},
+    coords::{
+        BACKWARD, DOWN, FORWARD, FactoryVector3, LEFT, PlayerVector3, RIGHT, RailVector3, UP,
+    },
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     rlights::{Light, LightType},
 };
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
-use std::{num::NonZeroU8, ops::RangeBounds};
+use std::num::NonZeroU8;
 
 /// The direction items are transfered through a node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -257,7 +258,7 @@ impl Machine for Reactor {
                     y: 0,
                     z: 0,
                 },
-            rotation: self.rotation.as_ordinal().as_3D(),
+            rotation: self.rotation.as_ordinal().as_3d(),
         });
         arr.push(PipeNode {
             position: self.position
@@ -266,7 +267,7 @@ impl Machine for Reactor {
                     y: 0,
                     z: length.get().into(),
                 },
-            rotation: self.rotation.as_ordinal().as_3D(),
+            rotation: self.rotation.as_ordinal().as_3d(),
         });
         arr
     }
@@ -282,6 +283,10 @@ impl Machine for Reactor {
         let height: i16 = height.get().into();
         let length: i16 = length.get().into();
         let (cos, sin, _) = self.rotation.cos_sin_tan();
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "cos and sin of Cardinal2D are guaranteed to be -1, 0, or 1"
+        )]
         let (cos, sin) = (cos as i16, sin as i16);
         let width = cos * width + sin * length;
         let length = sin * width + cos * length;
@@ -294,7 +299,7 @@ impl Machine for Reactor {
         let ([xmin, xmax], [zmin, zmax]) = (xs, zs);
         MachineBounds {
             x: (xmin..xmax),
-            y: (y..y + height),
+            y: (y..y + height), // height is never negative (at the time of writing)
             z: (zmin..zmax),
         }
     }
@@ -412,7 +417,7 @@ impl Factory {
     ) {
         const GRID_SIZE: i16 = 100;
 
-        let position_in_factory = player_pos.to_factory_relative(origin);
+        let position_in_factory = player_pos.to_factory(origin).unwrap();
 
         let player_snapped = position_in_factory.to_player_relative(player_pos, origin)
             + Vector3::new(0.5, 0.5, 0.5);
@@ -469,26 +474,41 @@ impl Factory {
         _player_pos: &PlayerVector3,
         _origin: &RailVector3,
     ) {
-        #[allow(clippy::multiple_unsafe_ops_per_block, clippy::cast_possible_wrap)]
-        // SAFETY: Manual implementation of DrawBillboardPro
+        #[allow(
+            clippy::cast_possible_wrap,
+            reason = "RL_QUADS is an i32 in Raylib, but bindgen made it a u32"
+        )]
+        const RL_QUADS: i32 = ffi::RL_QUADS as i32;
+
+        #[allow(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "safety comment is complicated and shared by all operations in this block"
+        )]
+        // SAFETY: RaylibDraw3D is exclusively borrowed, guaranteeing the window has been
+        // initialized, 3D drawing processes are loaded, and rlgl statics are syncronous
+        // for this function (assuming no soundness holes outside of this function).
+        // RaylibThread (which does not implement Send/Sync) is borrowed, guaranteeing
+        // this is the thread that initialized the window and graphics.
         unsafe {
-            #[allow(clippy::wildcard_imports)]
-            use ffi::*;
-            rlSetTexture(resources.skybox.id);
-            rlBegin(RL_QUADS as i32);
+            ffi::rlSetTexture(resources.skybox.id);
+            ffi::rlBegin(RL_QUADS);
             {
-                rlColor4ub(255, 255, 255, 255);
-                rlTexCoord2f(0.0, 1.0);
-                rlVertex3f(-1000.0, 50.0, -1000.0);
-                rlTexCoord2f(1.0, 1.0);
-                rlVertex3f(1000.0, 50.0, -1000.0);
-                rlTexCoord2f(1.0, 0.0);
-                rlVertex3f(1000.0, 50.0, 1000.0);
-                rlTexCoord2f(0.0, 0.0);
-                rlVertex3f(-1000.0, 50.0, 1000.0);
+                ffi::rlColor4ub(255, 255, 255, 255);
+
+                ffi::rlTexCoord2f(0.0, 1.0);
+                ffi::rlVertex3f(-1000.0, 50.0, -1000.0);
+
+                ffi::rlTexCoord2f(1.0, 1.0);
+                ffi::rlVertex3f(1000.0, 50.0, -1000.0);
+
+                ffi::rlTexCoord2f(1.0, 0.0);
+                ffi::rlVertex3f(1000.0, 50.0, 1000.0);
+
+                ffi::rlTexCoord2f(0.0, 0.0);
+                ffi::rlVertex3f(-1000.0, 50.0, 1000.0);
             }
-            rlEnd();
-            rlSetTexture(0);
+            ffi::rlEnd();
+            ffi::rlSetTexture(0);
         }
     }
 

@@ -22,9 +22,8 @@ impl Cardinal2D {
         }
     }
 
-    #[allow(non_snake_case)]
     #[inline]
-    pub const fn as_3D(self) -> Cardinal3D {
+    pub const fn as_3d(self) -> Cardinal3D {
         match self {
             Self::East  => Cardinal3D::East,
             Self::North => Cardinal3D::North,
@@ -107,9 +106,8 @@ impl Ordinal2D {
         unsafe { std::mem::transmute::<Self, Cardinal2D>(self) }
     }
 
-    #[allow(non_snake_case)]
     #[inline]
-    pub const fn as_3D(self) -> Ordinal3D {
+    pub const fn as_3d(self) -> Ordinal3D {
         match self {
             Self::East      => Ordinal3D::East,
             Self::Northeast => Ordinal3D::Northeast,
