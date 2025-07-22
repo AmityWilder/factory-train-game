@@ -82,7 +82,6 @@ fn main() {
     rl.set_target_fps(60);
     rl.maximize_window();
     rl.hide_cursor();
-    // lock cursor.
     rl.disable_cursor();
 
     let mut resources = Resources::new(&mut rl, &thread);
@@ -117,14 +116,23 @@ fn main() {
 
     while !rl.window_should_close() {
         let inputs = bindings.check(&rl);
-        player.update(&mut rl, &thread, &inputs, &mut factory);
+        player.do_movement(&mut rl, &thread, &inputs, &factory);
+        let player_vision_ray = player.vision_ray();
+        player.do_actions(&mut rl, &thread, &inputs, &mut factory);
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
         {
             let mut d = d.begin_mode3D(player.camera);
-            factory.draw(&mut d, &thread, &mut resources, &player.position);
+            let view_target = factory.get_ray_collision(player_vision_ray);
+            factory.draw(
+                &mut d,
+                &thread,
+                &mut resources,
+                &player,
+                view_target.as_ref(),
+            );
         }
 
         d.draw_fps(0, 0);

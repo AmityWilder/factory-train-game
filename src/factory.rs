@@ -4,6 +4,7 @@ use crate::{
         RailVector3, UP,
     },
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
+    player::Player,
     rlights::{Light, LightType},
 };
 use arrayvec::ArrayVec;
@@ -464,6 +465,7 @@ pub const fn machine_matrix(
     }
 }
 
+/// Note: vectors are in Factory coordinates
 pub struct FactoryCollision<'a> {
     pub target: Option<&'a dyn Machine>,
     pub distance: f32,
@@ -529,18 +531,6 @@ impl Factory {
         const GRID_SIZE: i16 = 100;
 
         let position_in_factory = player_pos.to_factory(origin).unwrap();
-
-        let player_snapped = position_in_factory.to_player_relative(player_pos, origin)
-            + Vector3::new(0.5, 0.5, 0.5);
-
-        d.draw_line3D(
-            player_snapped + BACKWARD,
-            player_snapped + FORWARD,
-            Color::BLUE,
-        );
-        d.draw_line3D(player_snapped + LEFT, player_snapped + RIGHT, Color::RED);
-        d.draw_line3D(player_snapped + DOWN, player_snapped + UP, Color::GREEN);
-        d.draw_cube_wires_v(player_snapped, Vector3::new(1.0, 1.0, 1.0), Color::WHITE);
 
         for x in (-GRID_SIZE)..GRID_SIZE {
             d.draw_line3D(
@@ -623,18 +613,14 @@ impl Factory {
         }
     }
 
-    pub fn draw(
+    fn draw_machines(
         &self,
         d: &mut impl RaylibDraw3D,
         thread: &RaylibThread,
         resources: &mut Resources,
         player_pos: &PlayerVector3,
+        origin: &RailVector3,
     ) {
-        let origin = &self.origin;
-
-        Self::draw_world_grid(d, thread, resources, player_pos, origin);
-        Self::draw_skybox(d, thread, resources, player_pos, origin);
-
         let reactor_model_transform = *resources.reactor.transform();
         for reactor in &self.reactors {
             let matrix = machine_matrix(player_pos, reactor.position, origin, reactor.rotation)
@@ -671,5 +657,54 @@ impl Factory {
         {
             pipe_node.draw(d, thread, player_pos, origin);
         }
+    }
+
+    fn draw_highlight(
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        _resources: &mut Resources,
+        player_pos: &PlayerVector3,
+        origin: &RailVector3,
+        player_lookat: &FactoryCollision<'_>,
+    ) {
+        if let Some(target) = player_lookat.target {
+            const EXPAND: Vector3 = Vector3::splat(0.025);
+            let mut bbox = target.bounding_box().to_bounding_box();
+            bbox.min -= EXPAND;
+            bbox.max += EXPAND;
+            d.draw_bounding_box(bbox, Color::YELLOW);
+        } else {
+            #[allow(clippy::cast_possible_truncation, reason = "this is intentional")]
+            let position_in_factory = FactoryVector3 {
+                x: player_lookat.point.x as i16,
+                y: player_lookat.point.y as i16,
+                z: player_lookat.point.z as i16,
+            };
+            let point = position_in_factory.to_player_relative(player_pos, origin)
+                + Vector3::new(0.5, 0.5, 0.5);
+            d.draw_line3D(point + BACKWARD, point + FORWARD, Color::BLUE);
+            d.draw_line3D(point + LEFT, point + RIGHT, Color::RED);
+            d.draw_line3D(point + DOWN, point + UP, Color::GREEN);
+            d.draw_cube_wires_v(point, Vector3::new(1.0, 1.0, 1.0), Color::WHITE);
+        }
+    }
+
+    pub fn draw<'a>(
+        &'a self,
+        d: &mut impl RaylibDraw3D,
+        thread: &RaylibThread,
+        resources: &mut Resources,
+        player: &Player,
+        player_lookat: Option<&FactoryCollision<'a>>,
+    ) {
+        let origin = &self.origin;
+        let player_pos = &player.position;
+
+        Self::draw_world_grid(d, thread, resources, player_pos, origin);
+        Self::draw_skybox(d, thread, resources, player_pos, origin);
+        if let Some(player_lookat) = player_lookat {
+            Self::draw_highlight(d, thread, resources, player_pos, origin, player_lookat);
+        }
+        self.draw_machines(d, thread, resources, player_pos, origin);
     }
 }

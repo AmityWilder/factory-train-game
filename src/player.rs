@@ -28,14 +28,14 @@ pub struct Player {
 
 #[inline]
 fn camera_helper(pitch: f32, yaw: f32) -> (Vector3, Vector3) {
-    let camera_offset = UP * Player::EYELEVEL;
+    let camera_offset = UP * Player::EYE_HEIGHT;
     let rot = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
     (camera_offset, camera_offset + rot.mul_vec3(FORWARD))
 }
 
 impl Player {
     pub const HEIGHT: f32 = 1.75;
-    pub const EYELEVEL: f32 = Self::HEIGHT - 0.15;
+    pub const EYE_HEIGHT: f32 = Self::HEIGHT - 0.15;
 
     /// Spawn the player at the specified location
     pub fn spawn(
@@ -57,13 +57,13 @@ impl Player {
         }
     }
 
-    /// Tick the player (handle movement and actions)
-    pub fn update(
+    /// Tick the player (handle movement)
+    pub fn do_movement(
         &mut self,
         rl: &mut RaylibHandle,
         _thread: &RaylibThread,
         inputs: &Inputs,
-        current_factory: &mut Factory,
+        current_factory: &Factory,
     ) {
         #[allow(unused_imports, clippy::enum_glob_use, reason = "no reason")]
         use input::{AxisInput::*, EventInput::*, VectorInput::*};
@@ -149,6 +149,28 @@ impl Player {
             }
 
             self.position += self.velocity.scale(dt.into());
+        }
+    }
+
+    /// Tick the player (modify the factory)
+    pub fn do_actions(
+        &self,
+        _rl: &mut RaylibHandle,
+        _thread: &RaylibThread,
+        _inputs: &Inputs,
+        _current_factory: &mut Factory,
+    ) {
+        _ = self.pitch.sin();
+    }
+
+    pub fn vision_ray(&self) -> Ray {
+        Ray {
+            position: Vector3::new(
+                self.position.x.to_f32(),
+                self.position.y.to_f32() + Self::EYE_HEIGHT,
+                self.position.z.to_f32(),
+            ),
+            direction: (self.camera.target - self.camera.position).normalize_or(FORWARD),
         }
     }
 
