@@ -91,13 +91,13 @@ impl Player {
                 .iter()
                 .filter_map(|reactor| {
                     let bounds = reactor.bounding_box();
-                    (bounds.x.contains(&position_in_factory.x)
-                        && bounds.z.contains(&position_in_factory.z)
+                    (bounds.x().contains(&position_in_factory.x)
+                        && bounds.z().contains(&position_in_factory.z)
                         // Add some extra height so that the floor doesn't reset to default after moving the player on top
-                        && (bounds.y.start..=bounds.y.end).contains(&position_in_factory.y)
+                        && (bounds.min.y..=bounds.max.y).contains(&position_in_factory.y)
                         // Don't teleport up more than a meter
-                        && position_in_factory.y.abs_diff(bounds.y.end) <= 1)
-                        .then_some(bounds.y.end)
+                        && position_in_factory.y.abs_diff(bounds.max.y) <= 1)
+                        .then_some(bounds.max.y)
                 })
                 .max()
                 .map_or(WORLD_FLOOR_HEIGHT, |y| PlayerCoord::from_i32(y.into()));

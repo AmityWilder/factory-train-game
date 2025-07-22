@@ -1,6 +1,7 @@
 use crate::{
     coords::{
-        BACKWARD, DOWN, FORWARD, FactoryVector3, LEFT, PlayerVector3, RIGHT, RailVector3, UP,
+        BACKWARD, DOWN, FORWARD, FactoryVector3, LEFT, PlayerCoord, PlayerVector3, RIGHT,
+        RailVector3, UP,
     },
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     rlights::{Light, LightType},
@@ -8,6 +9,33 @@ use crate::{
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
 use std::num::NonZeroU8;
+
+/// Get collision info between ray and box
+#[inline]
+pub fn get_ray_collision_box(ray: Ray, box_: BoundingBox) -> RayCollision {
+    // SAFETY: GetRayCollisionBox has no preconditions and is a pure math function
+    unsafe { ffi::GetRayCollisionBox(ray.into(), box_.into()) }.into()
+}
+
+fn get_ray_collision_plane(ray: Ray, point: Vector3, normal: Vector3) -> RayCollision {
+    let mut collision = RayCollision {
+        hit: false,
+        distance: 0.0,
+        point: Vector3::ZERO,
+        normal: Vector3::ZERO,
+    };
+
+    let distance = (point - ray.position).dot(normal) / ray.direction.dot(normal);
+
+    if distance >= 0.0 {
+        collision.hit = true;
+        collision.distance = distance;
+        collision.point = ray.position + ray.direction * distance;
+        collision.normal = normal;
+    }
+
+    collision
+}
 
 /// The direction items are transfered through a node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -125,13 +153,6 @@ pub struct MachineSize {
     pub length: NonZeroU8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MachineBounds {
-    pub x: std::ops::Range<i16>,
-    pub y: std::ops::Range<i16>,
-    pub z: std::ops::Range<i16>,
-}
-
 impl MachineSize {
     /// # Safety
     ///
@@ -149,6 +170,35 @@ impl MachineSize {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MachineBounds {
+    pub min: FactoryVector3,
+    pub max: FactoryVector3,
+}
+
+impl MachineBounds {
+    #[inline]
+    pub const fn x(&self) -> std::ops::Range<i16> {
+        self.min.x..self.max.x
+    }
+    #[inline]
+    pub const fn y(&self) -> std::ops::Range<i16> {
+        self.min.y..self.max.y
+    }
+    #[inline]
+    pub const fn z(&self) -> std::ops::Range<i16> {
+        self.min.z..self.max.z
+    }
+
+    /// NOTE: returned [`BoundingBox`] is still in Factory coordinates, not world
+    pub const fn to_bounding_box(self) -> BoundingBox {
+        BoundingBox {
+            min: Vector3::new(self.min.x as f32, self.min.y as f32, self.min.z as f32),
+            max: Vector3::new(self.max.x as f32, self.max.y as f32, self.max.z as f32),
+        }
+    }
+}
+
 #[const_trait]
 pub trait Clearance {
     /// The dimensions of the machine in meters.
@@ -158,16 +208,6 @@ pub trait Clearance {
 }
 
 pub trait Machine: Clearance {
-    /// Render the machine
-    // TODO: batch draws of same machine type
-    fn draw(
-        &self,
-        d: &mut impl RaylibDraw3D,
-        _thread: &RaylibThread,
-        player_pos: &PlayerVector3,
-        factory_origin: &RailVector3,
-    );
-
     #[inline]
     #[must_use]
     fn belt_inputs(&self) -> ArrayVec<BeltInputNode, 8> {
@@ -186,8 +226,21 @@ pub trait Machine: Clearance {
         ArrayVec::new()
     }
 
+    /// Bounding box of the machine
     #[must_use]
     fn bounding_box(&self) -> MachineBounds;
+}
+
+pub trait DrawMachine: Machine {
+    /// Render the machine
+    // TODO: batch draws of same machine type
+    fn draw(
+        &self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        player_pos: &PlayerVector3,
+        factory_origin: &RailVector3,
+    );
 }
 
 /// Reacts two solutions
@@ -206,24 +259,6 @@ impl const Clearance for Reactor {
 }
 
 impl Machine for Reactor {
-    fn draw(
-        &self,
-        d: &mut impl RaylibDraw3D,
-        _thread: &RaylibThread,
-        player_pos: &PlayerVector3,
-        factory_origin: &RailVector3,
-    ) {
-        let size = self.clearance();
-        let player_rel_pos = self.position.to_player_relative(player_pos, factory_origin);
-        d.draw_cube(
-            player_rel_pos,
-            size.width.get().into(),
-            size.height.get().into(),
-            size.length.get().into(),
-            Color::GRAY,
-        );
-    }
-
     fn belt_inputs(&self) -> ArrayVec<BeltInputNode, 8> {
         let mut arr = ArrayVec::new();
         arr.push(BeltInputNode(BeltNode {
@@ -297,11 +332,39 @@ impl Machine for Reactor {
             }
         }
         let ([xmin, xmax], [zmin, zmax]) = (xs, zs);
+        // height is never negative (at the time of writing)
         MachineBounds {
-            x: (xmin..xmax),
-            y: (y..y + height), // height is never negative (at the time of writing)
-            z: (zmin..zmax),
+            min: FactoryVector3 {
+                x: xmin,
+                y,
+                z: zmin,
+            },
+            max: FactoryVector3 {
+                x: xmax,
+                y: y + height,
+                z: zmax,
+            },
         }
+    }
+}
+
+impl DrawMachine for Reactor {
+    fn draw(
+        &self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        player_pos: &PlayerVector3,
+        factory_origin: &RailVector3,
+    ) {
+        let size = self.clearance();
+        let player_rel_pos = self.position.to_player_relative(player_pos, factory_origin);
+        d.draw_cube(
+            player_rel_pos,
+            size.width.get().into(),
+            size.height.get().into(),
+            size.length.get().into(),
+            Color::GRAY,
+        );
     }
 }
 
@@ -401,6 +464,13 @@ pub const fn machine_matrix(
     }
 }
 
+pub struct FactoryCollision<'a> {
+    pub target: Option<&'a dyn Machine>,
+    pub distance: f32,
+    pub normal: Vector3,
+    pub point: Vector3,
+}
+
 #[derive(Debug)]
 pub struct Factory {
     pub origin: RailVector3,
@@ -408,6 +478,47 @@ pub struct Factory {
 }
 
 impl Factory {
+    /// Cast a ray and see what it hits
+    pub fn get_ray_collision(&self, ray: Ray) -> Option<FactoryCollision<'_>> {
+        std::iter::once_with(|| {
+            let RayCollision {
+                hit,
+                distance,
+                point,
+                normal,
+            } = get_ray_collision_plane(ray, Vector3::ZERO, UP);
+
+            if hit {
+                Some(FactoryCollision {
+                    target: None,
+                    distance,
+                    normal,
+                    point,
+                })
+            } else {
+                None
+            }
+        })
+        .chain(self.reactors.iter().map(|reactor| {
+            let bbox = reactor.bounding_box().to_bounding_box();
+            let RayCollision {
+                hit,
+                distance,
+                point,
+                normal,
+            } = get_ray_collision_box(ray, bbox);
+
+            hit.then_some(FactoryCollision {
+                target: Some(reactor),
+                distance,
+                normal,
+                point,
+            })
+        }))
+        .flatten()
+        .min_by_key(|collision| PlayerCoord::from_f32(collision.distance))
+    }
+
     fn draw_world_grid(
         d: &mut impl RaylibDraw3D,
         _thread: &RaylibThread,
@@ -535,18 +646,8 @@ impl Factory {
             );
             let bounds = reactor.bounding_box();
             let bbox = BoundingBox {
-                min: FactoryVector3 {
-                    x: bounds.x.start,
-                    y: bounds.y.start,
-                    z: bounds.z.start,
-                }
-                .to_player_relative(player_pos, origin),
-                max: FactoryVector3 {
-                    x: bounds.x.end,
-                    y: bounds.y.end,
-                    z: bounds.z.end,
-                }
-                .to_player_relative(player_pos, origin),
+                min: bounds.min.to_player_relative(player_pos, origin),
+                max: bounds.max.to_player_relative(player_pos, origin),
             };
             d.draw_bounding_box(bbox, Color::MAGENTA);
         }

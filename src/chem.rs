@@ -1,15 +1,15 @@
 use std::num::NonZeroU8;
 
 pub const AVOGADROS_NUMBER: f64 = 6.022_140_76e+26;
-/// Atomic mass units per kilogram
+/// Atomic mass units (AMU) per kilogram (kg)
 pub const AMU_PER_KG: f64 = AVOGADROS_NUMBER;
-/// Kilograms per atomic mass unit
+/// Kilograms (kg) per atomic mass unit (AMU)
 pub const KG_PER_AMU: f64 = AMU_PER_KG.recip();
 
-/// Picometers per meter
+/// Picometers (pm) per meter (m)
 pub const PM_PER_M: f64 = 1e+12;
-/// Meters per picometer
-pub const M_PER_PM: f64 = 1e-12;
+/// Meters (m) per picometer (pm)
+pub const M_PER_PM: f64 = PM_PER_M.recip();
 
 /// Mass of a single proton in AMU
 pub const PROTON_MASS: f64 = 1.007_276_466_879_91;
@@ -66,9 +66,19 @@ impl From<NobleGas> for Element {
 
 impl NobleGas {
     #[inline]
+    pub const fn try_from_element(element: Element) -> Option<Self> {
+        if matches!(element, He | Ne | Ar | Kr | Xe | Rn | Og) {
+            // SAFETY: Checked and element is a noble gas
+            Some(unsafe { std::mem::transmute::<Element, Self>(element) })
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     pub const fn as_element(self) -> Element {
         // SAFETY: NobleGas is a subset of Element
-        unsafe { std::mem::transmute(self) }
+        unsafe { std::mem::transmute::<Self, Element>(self) }
     }
 }
 
@@ -427,28 +437,81 @@ impl ElectronConfig {
     }
 }
 
+#[const_trait]
+pub trait SubSupScript: Sized {
+    type Output: Sized;
+
+    /// Convert a unicode character to its superscript equivalent
+    ///
+    /// Returns [`None`] if the character has no superscript version
+    #[must_use]
+    fn to_superscript(self) -> Option<Self::Output>;
+
+    /// Convert a unicode character to its subscript equivalent
+    ///
+    /// Returns [`None`] if the character has no subscript version
+    #[must_use]
+    fn to_subscript(self) -> Option<Self::Output>;
+}
+
+/// Only works for `0`-`9`, `+`, `-`, `=`, `(`, and `)`
+impl const SubSupScript for char {
+    type Output = char;
+
+    #[inline]
+    fn to_superscript(self) -> Option<Self::Output> {
+        match self {
+            '0' => Some('⁰'),
+            '1' => Some('¹'),
+            '2' => Some('²'),
+            '3' => Some('³'),
+            '4' => Some('⁴'),
+            '5' => Some('⁵'),
+            '6' => Some('⁶'),
+            '7' => Some('⁷'),
+            '8' => Some('⁸'),
+            '9' => Some('⁹'),
+            '+' => Some('⁺'),
+            '-' => Some('⁻'),
+            '=' => Some('⁼'),
+            '(' => Some('⁽'),
+            ')' => Some('⁾'),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn to_subscript(self) -> Option<Self::Output> {
+        match self {
+            '0' => Some('₀'),
+            '1' => Some('₁'),
+            '2' => Some('₂'),
+            '3' => Some('₃'),
+            '4' => Some('₄'),
+            '5' => Some('₅'),
+            '6' => Some('₆'),
+            '7' => Some('₇'),
+            '8' => Some('₈'),
+            '9' => Some('₉'),
+            '+' => Some('₊'),
+            '-' => Some('₋'),
+            '=' => Some('₌'),
+            '(' => Some('₍'),
+            ')' => Some('₎'),
+            _ => None,
+        }
+    }
+}
+
 impl std::fmt::Display for ElectronConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn superscript(buf: &mut (String, String), n: u8) -> std::fmt::Result {
             use std::fmt::Write;
             buf.0.clear();
-            buf.1.clear();
             write!(buf.0, "{n}")?;
-            for ch in buf.0.chars().map(|ch| match ch {
-                '0' => '⁰',
-                '1' => '¹',
-                '2' => '²',
-                '3' => '³',
-                '4' => '⁴',
-                '5' => '⁵',
-                '6' => '⁶',
-                '7' => '⁷',
-                '8' => '⁸',
-                '9' => '⁹',
-                _ => unreachable!(),
-            }) {
-                buf.1.push(ch);
-            }
+            buf.1.clear();
+            buf.1
+                .extend(buf.0.chars().map(|ch| ch.to_superscript().unwrap()));
             Ok(())
         }
         let mut sublevels = self
@@ -461,10 +524,15 @@ impl std::fmt::Display for ElectronConfig {
         }
         sublevels.sort_by_key(|lv| lv.0.energy_level());
         let total = sublevels.len();
-        let mut buf = (String::new(), String::new());
+        let mut buf0 = String::new();
+        let mut buf1 = String::new();
         for (n, (orbital, electrons)) in sublevels.into_iter().enumerate() {
-            superscript(&mut buf, electrons)?;
-            write!(f, "{}{}", orbital, buf.1)?;
+            use std::fmt::Write;
+            buf0.clear();
+            write!(buf0, "{electrons}")?;
+            buf1.clear();
+            buf1.extend(buf0.chars().map(|ch| ch.to_superscript().unwrap()));
+            write!(f, "{orbital}{buf1}")?;
             if n < total - 1 {
                 write!(f, " ")?;
             }
