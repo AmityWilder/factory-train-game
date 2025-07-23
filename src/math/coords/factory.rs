@@ -44,8 +44,8 @@ impl FactoryVector3 {
     }
 
     #[inline]
-    pub const fn to_player(self, player_pos: &PlayerVector3, origin: &RailVector3) -> Vector3 {
-        (self.to_rail(*origin).to_player().minus(*player_pos)).to_vec3()
+    pub const fn to_player(self, origin: &RailVector3) -> PlayerVector3 {
+        self.to_rail(*origin).to_player()
     }
 
     #[inline]
@@ -54,7 +54,7 @@ impl FactoryVector3 {
         player_pos: &PlayerVector3,
         origin: &RailVector3,
     ) -> Vector3 {
-        (self.to_rail(*origin).to_player().minus(*player_pos)).to_vec3()
+        (self.to_player(origin).minus(*player_pos)).to_vec3()
     }
 
     #[inline]

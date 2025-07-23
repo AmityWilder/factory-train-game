@@ -1,7 +1,6 @@
+use super::{FactoryVector3, TryFromFactoryVectorError, VectorConstants, rail::RailVector3};
 use fixed_point::Q32_32;
 use raylib::prelude::Vector3;
-
-use super::{FactoryVector3, TryFromFactoryVectorError, VectorConstants, rail::RailVector3};
 
 pub type PlayerCoord = Q32_32;
 
