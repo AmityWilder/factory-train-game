@@ -1,7 +1,10 @@
 use crate::{
-    coords::{DOWN, FORWARD, PlayerCoord, PlayerVector3, RIGHT, UP},
     factory::{Factory, Machine},
     input::{self, Inputs},
+    math::coords::{
+        VectorConstants,
+        player::{PlayerCoord, PlayerVector3},
+    },
 };
 use raylib::prelude::{
     glam::{EulerRot, Quat},
@@ -28,9 +31,12 @@ pub struct Player {
 
 #[inline]
 fn camera_helper(pitch: f32, yaw: f32) -> (Vector3, Vector3) {
-    let camera_offset = UP * Player::EYE_HEIGHT;
+    let camera_offset = Vector3::UP * Player::EYE_HEIGHT;
     let rot = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
-    (camera_offset, camera_offset + rot.mul_vec3(FORWARD))
+    (
+        camera_offset,
+        camera_offset + rot.mul_vec3(Vector3::FORWARD),
+    )
 }
 
 impl Player {
@@ -53,7 +59,7 @@ impl Player {
             yaw,
             pitch,
             is_running: false,
-            camera: Camera3D::perspective(camera_offset, camera_target, UP, fovy),
+            camera: Camera3D::perspective(camera_offset, camera_target, Vector3::UP, fovy),
         }
     }
 
@@ -118,7 +124,7 @@ impl Player {
                     self.velocity -= self.velocity.scale((0.1).into());
                 }
             } else {
-                force += PlayerVector3::from_vec3(DOWN) * GRAVITY;
+                force += PlayerVector3::from_vec3(Vector3::DOWN) * GRAVITY;
                 movement *= AIR_MOBILITY_FACTOR;
             }
 
@@ -130,11 +136,12 @@ impl Player {
             };
 
             if inputs[Jump] && is_on_floor {
-                force += PlayerVector3::from_vec3(UP) * GRAVITY * JUMP_DURATION;
+                force += PlayerVector3::from_vec3(Vector3::UP) * GRAVITY * JUMP_DURATION;
             }
 
             let movement_force =
-                ((RIGHT * movement.x + FORWARD * movement.y) * move_speed * 6.0).into();
+                ((Vector3::RIGHT * movement.x + Vector3::FORWARD * movement.y) * move_speed * 6.0)
+                    .into();
             force += movement_force;
 
             self.velocity += force.scale(dt.into());
@@ -170,7 +177,7 @@ impl Player {
                 self.position.y.to_f32() + Self::EYE_HEIGHT,
                 self.position.z.to_f32(),
             ),
-            direction: (self.camera.target - self.camera.position).normalize_or(FORWARD),
+            direction: (self.camera.target - self.camera.position).normalize_or(Vector3::FORWARD),
         }
     }
 

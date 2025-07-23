@@ -1,8 +1,5 @@
 use crate::{
-    coords::{
-        BACKWARD, DOWN, FORWARD, FactoryVector3, LEFT, PlayerCoord, PlayerVector3, RIGHT,
-        RailVector3, UP,
-    },
+    math::coords::{FactoryVector3, PlayerCoord, PlayerVector3, RailVector3, VectorConstants},
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     player::Player,
     rlights::{Light, LightType},
@@ -488,7 +485,7 @@ impl Factory {
                 distance,
                 point,
                 normal,
-            } = get_ray_collision_plane(ray, Vector3::ZERO, UP);
+            } = get_ray_collision_plane(ray, Vector3::ZERO, Vector3::UP);
 
             if hit {
                 Some(FactoryCollision {
@@ -682,9 +679,13 @@ impl Factory {
             };
             let point = position_in_factory.to_player_relative(player_pos, origin)
                 + Vector3::new(0.5, 0.5, 0.5);
-            d.draw_line3D(point + BACKWARD, point + FORWARD, Color::BLUE);
-            d.draw_line3D(point + LEFT, point + RIGHT, Color::RED);
-            d.draw_line3D(point + DOWN, point + UP, Color::GREEN);
+            d.draw_line3D(
+                point + Vector3::BACKWARD,
+                point + Vector3::FORWARD,
+                Color::BLUE,
+            );
+            d.draw_line3D(point + Vector3::LEFT, point + Vector3::RIGHT, Color::RED);
+            d.draw_line3D(point + Vector3::DOWN, point + Vector3::UP, Color::GREEN);
             d.draw_cube_wires_v(point, Vector3::new(1.0, 1.0, 1.0), Color::WHITE);
         }
     }

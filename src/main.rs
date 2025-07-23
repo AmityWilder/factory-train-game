@@ -11,7 +11,8 @@
 #![warn(
     clippy::unnecessary_safety_doc,
     clippy::unnecessary_safety_comment,
-    clippy::allow_attributes_without_reason
+    clippy::allow_attributes_without_reason,
+    clippy::must_use_candidate
 )]
 #![feature(
     const_trait_impl,
@@ -22,24 +23,26 @@
     custom_inner_attributes,
     assert_matches,
     const_try,
-    const_range_bounds
+    const_range_bounds,
+    associated_type_defaults
 )]
 
+use math::coords::VectorConstants;
 use raylib::prelude::*;
 
 mod chem;
-mod coords;
 mod factory;
 mod input;
+mod lab;
+mod math;
 mod ordinals;
-mod periodic_table;
 mod player;
 mod rlights;
 
 use {
-    coords::{FactoryVector3, PlayerVector3, RailVector3},
     factory::{Factory, Reactor, Resources},
     input::Bindings,
+    math::coords::{factory::FactoryVector3, player::PlayerVector3, rail::RailVector3},
     ordinals::Cardinal2D,
     player::Player,
 };
