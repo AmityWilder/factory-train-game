@@ -3,7 +3,9 @@
 use std::{mem::MaybeUninit, ops::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Q32_32(i64);
+pub struct Q<T, const D: usize>(T);
+
+pub type Q32_32 = Q<i64, 32>;
 
 impl std::fmt::Binary for Q32_32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
