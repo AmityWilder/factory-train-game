@@ -27,24 +27,32 @@
     associated_type_defaults
 )]
 
-use math::coords::VectorConstants;
+use math::{
+    bounds::LabBounds,
+    coords::{LabVector3, VectorConstants},
+};
 use raylib::prelude::*;
+use region::{
+    Region,
+    factory::{Factory, Reactor},
+    lab::{Laboratory, PeriodicTable},
+};
 
 mod chem;
-mod factory;
 mod input;
-mod lab;
 mod math;
 mod ordinals;
 mod player;
+mod region;
+mod resource;
 mod rlights;
 
 use {
-    factory::{Factory, Reactor, Resources},
     input::Bindings,
     math::coords::{factory::FactoryVector3, player::PlayerVector3, rail::RailVector3},
     ordinals::Cardinal2D,
     player::Player,
+    resource::Resources,
 };
 
 fn set_bindings_default(bindings: &mut Bindings) {
@@ -87,7 +95,7 @@ fn main() {
     rl.hide_cursor();
     rl.disable_cursor();
 
-    let mut resources = Resources::new(&mut rl, &thread);
+    let resources = Resources::new(&mut rl, &thread);
 
     let font = rl
         .load_font_from_memory(
@@ -103,7 +111,7 @@ fn main() {
 
     let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::ZERO, 0.0, 0.0, 45.0);
 
-    let mut factory: Factory = Factory {
+    let mut factories: Vec<Factory> = vec![Factory {
         origin: RailVector3 { x: 0, y: 0, z: 0 },
         reactors: vec![
             Reactor {
@@ -115,27 +123,41 @@ fn main() {
                 rotation: Cardinal2D::default(),
             },
         ],
+    }];
+
+    let mut lab = Laboratory {
+        origin: PlayerVector3::from_i32(5, 0, -15),
+        bounds: LabBounds {
+            min: LabVector3::from_i16(-28, 0, -20),
+            max: LabVector3::from_i16(28, 10, 20),
+        },
+        periodic_table: Some(PeriodicTable {
+            position: LabVector3::from_i16(0, 0, 0),
+        }),
     };
 
+    let mut current_region = Region::Factory(&mut factories[0]);
+
     while !rl.window_should_close() {
+        // Change region
+        if rl.is_key_pressed(KeyboardKey::KEY_R) {
+            match current_region {
+                Region::Rail => todo!(),
+                Region::Factory(_) => current_region = Region::Lab(&mut lab),
+                Region::Lab(_) => current_region = Region::Factory(&mut factories[0]),
+            }
+        }
+
         let inputs = bindings.check(&rl);
-        player.do_movement(&mut rl, &thread, &inputs, &factory);
-        let player_vision_ray = player.vision_ray();
-        player.do_actions(&mut rl, &thread, &inputs, &mut factory);
+        player.do_movement(&mut rl, &thread, &inputs, &current_region);
+        player.do_actions(&mut rl, &thread, &inputs, &mut current_region);
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
         {
             let mut d = d.begin_mode3D(player.camera);
-            let view_target = factory.get_ray_collision(player_vision_ray);
-            factory.draw(
-                &mut d,
-                &thread,
-                &mut resources,
-                &player,
-                view_target.as_ref(),
-            );
+            current_region.draw(&mut d, &thread, &resources, &player);
         }
 
         d.draw_fps(0, 0);

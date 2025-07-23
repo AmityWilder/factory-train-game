@@ -107,6 +107,9 @@ dependencies = [
 [[package]]
 name = "fixed_point"
 version = "0.1.0"
+dependencies = [
+ "paste",
+]
 
 [[package]]
 name = "getrandom"

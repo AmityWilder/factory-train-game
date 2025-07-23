@@ -1,9 +1,12 @@
 use crate::{
-    factory::{Factory, Machine},
+    Region,
     input::{self, Inputs},
-    math::coords::{
-        VectorConstants,
-        player::{PlayerCoord, PlayerVector3},
+    math::{
+        bounds::Bounds,
+        coords::{
+            VectorConstants,
+            player::{PlayerCoord, PlayerVector3},
+        },
     },
 };
 use raylib::prelude::{
@@ -69,7 +72,7 @@ impl Player {
         rl: &mut RaylibHandle,
         _thread: &RaylibThread,
         inputs: &Inputs,
-        current_factory: &Factory,
+        current_region: &Region<'_>,
     ) {
         #[allow(unused_imports, clippy::enum_glob_use, reason = "no reason")]
         use input::{AxisInput::*, EventInput::*, VectorInput::*};
@@ -90,27 +93,36 @@ impl Player {
         {
             const WORLD_FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
 
-            let position_in_factory = self.position.to_factory(&current_factory.origin).unwrap();
+            let local_floor = match current_region {
+                Region::Rail => None,
+                Region::Factory(current_factory) => {
+                    let position_in_factory =
+                        self.position.to_factory(&current_factory.origin).unwrap();
 
-            let local_floor = current_factory
-                .reactors
-                .iter()
-                .filter_map(|reactor| {
-                    let bounds = reactor.bounding_box();
-                    (bounds.x().contains(&position_in_factory.x)
-                        && bounds.z().contains(&position_in_factory.z)
-                        // Add some extra height so that the floor doesn't reset to default after moving the player on top
-                        && (bounds.min.y..=bounds.max.y).contains(&position_in_factory.y)
-                        // Don't teleport up more than a meter
-                        && position_in_factory.y.abs_diff(bounds.max.y) <= 1)
-                        .then_some(bounds.max.y)
-                })
-                .max()
-                .map_or(WORLD_FLOOR_HEIGHT, |y| PlayerCoord::from_i32(y.into()));
+                    current_factory
+                        .reactors
+                        .iter()
+                        .filter_map(|reactor| {
+                            let bounds = reactor.bounds();
+                            (bounds.x().contains(&position_in_factory.x)
+                            && bounds.z().contains(&position_in_factory.z)
+                            // Add some extra height so that the floor doesn't reset to default after moving the player on top
+                            && (bounds.min.y..=bounds.max.y).contains(&position_in_factory.y)
+                            // Don't teleport up more than a meter
+                            && position_in_factory.y.abs_diff(bounds.max.y) <= 1)
+                                .then_some(bounds.max.y)
+                        })
+                        .max()
+                }
+                Region::Lab(_current_lab) => {
+                    None // todo
+                }
+            }
+            .map_or(WORLD_FLOOR_HEIGHT, |y| PlayerCoord::from_i32(y.into()));
 
             let is_on_floor = self.position.y <= local_floor;
             if is_on_floor {
-                self.velocity.y = 0.into();
+                self.velocity.y = PlayerCoord::ZERO;
                 self.position.y = local_floor;
             }
 
@@ -121,7 +133,7 @@ impl Player {
             let mut movement = inputs[Walk].normalize_or_zero().rotate(move_dir);
             if is_on_floor {
                 if movement.length_squared() < 0.01 {
-                    self.velocity -= self.velocity.scale((0.1).into());
+                    self.velocity -= self.velocity.scale(PlayerCoord::from_f32(0.1));
                 }
             } else {
                 force += PlayerVector3::from_vec3(Vector3::DOWN) * GRAVITY;
@@ -144,10 +156,10 @@ impl Player {
                     .into();
             force += movement_force;
 
-            self.velocity += force.scale(dt.into());
+            self.velocity += force.scale(PlayerCoord::from_f32(dt));
 
             let vel_len_sq = self.velocity.length_sqr();
-            if vel_len_sq < 0.0001.into() {
+            if vel_len_sq < PlayerCoord::from_f32(0.0001) {
                 // velocity dead zone
                 self.velocity = PlayerVector3::ZERO;
             } else if is_on_floor {
@@ -155,17 +167,17 @@ impl Player {
                 self.velocity *= PlayerCoord::ONE - vel_len_sq * FRICTION;
             }
 
-            self.position += self.velocity.scale(dt.into());
+            self.position += self.velocity.scale(PlayerCoord::from_f32(dt));
         }
     }
 
-    /// Tick the player (modify the factory)
+    /// Tick player actions
     pub fn do_actions(
         &self,
         _rl: &mut RaylibHandle,
         _thread: &RaylibThread,
         _inputs: &Inputs,
-        _current_factory: &mut Factory,
+        _current_region: &mut Region,
     ) {
         _ = self.pitch.sin();
     }

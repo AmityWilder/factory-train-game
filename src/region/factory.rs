@@ -1,8 +1,11 @@
 use crate::{
-    math::coords::{FactoryVector3, PlayerCoord, PlayerVector3, RailVector3, VectorConstants},
+    math::{
+        bounds::{Bounds, FactoryBounds},
+        coords::{FactoryVector3, PlayerCoord, PlayerVector3, RailVector3, VectorConstants},
+    },
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     player::Player,
-    rlights::{Light, LightType},
+    resource::Resources,
 };
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
@@ -168,13 +171,7 @@ impl MachineSize {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MachineBounds {
-    pub min: FactoryVector3,
-    pub max: FactoryVector3,
-}
-
-impl MachineBounds {
+impl FactoryBounds {
     #[inline]
     pub const fn x(&self) -> std::ops::Range<i16> {
         self.min.x..self.max.x
@@ -187,14 +184,6 @@ impl MachineBounds {
     pub const fn z(&self) -> std::ops::Range<i16> {
         self.min.z..self.max.z
     }
-
-    /// NOTE: returned [`BoundingBox`] is still in Factory coordinates, not world
-    pub const fn to_bounding_box(self) -> BoundingBox {
-        BoundingBox {
-            min: Vector3::new(self.min.x as f32, self.min.y as f32, self.min.z as f32),
-            max: Vector3::new(self.max.x as f32, self.max.y as f32, self.max.z as f32),
-        }
-    }
 }
 
 #[const_trait]
@@ -205,7 +194,7 @@ pub trait Clearance {
     fn clearance(&self) -> MachineSize;
 }
 
-pub trait Machine: Clearance {
+pub trait Machine: Clearance + Bounds<FactoryVector3, BoundingBox = FactoryBounds> {
     #[inline]
     #[must_use]
     fn belt_inputs(&self) -> ArrayVec<BeltInputNode, 8> {
@@ -223,10 +212,6 @@ pub trait Machine: Clearance {
     fn pipe_nodes(&self) -> ArrayVec<PipeNode, 8> {
         ArrayVec::new()
     }
-
-    /// Bounding box of the machine
-    #[must_use]
-    fn bounding_box(&self) -> MachineBounds;
 }
 
 pub trait DrawMachine: Machine {
@@ -253,6 +238,50 @@ impl const Clearance for Reactor {
     fn clearance(&self) -> MachineSize {
         // SAFETY: 2 and 3 are not zero
         unsafe { MachineSize::new_unchecked(2, 2, 3) }
+    }
+}
+
+impl Bounds<FactoryVector3> for Reactor {
+    type BoundingBox = FactoryBounds;
+
+    fn bounds(&self) -> Self::BoundingBox {
+        let FactoryVector3 { x, y, z } = self.position;
+        let MachineSize {
+            width,
+            height,
+            length,
+        } = self.clearance();
+        let width: i16 = width.get().into();
+        let height: i16 = height.get().into();
+        let length: i16 = length.get().into();
+        let (cos, sin, _) = self.rotation.cos_sin_tan();
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "cos and sin of Cardinal2D are guaranteed to be -1, 0, or 1"
+        )]
+        let (cos, sin) = (cos as i16, sin as i16);
+        let width = cos * width + sin * length;
+        let length = sin * width + cos * length;
+        let (mut xs, mut zs) = ([x, x + width], [z, z + length]);
+        for a in [&mut xs, &mut zs] {
+            if !a.is_sorted() {
+                a.reverse();
+            }
+        }
+        let ([xmin, xmax], [zmin, zmax]) = (xs, zs);
+        // height is never negative (at the time of writing)
+        FactoryBounds {
+            min: FactoryVector3 {
+                x: xmin,
+                y,
+                z: zmin,
+            },
+            max: FactoryVector3 {
+                x: xmax,
+                y: y + height,
+                z: zmax,
+            },
+        }
     }
 }
 
@@ -304,46 +333,6 @@ impl Machine for Reactor {
         });
         arr
     }
-
-    fn bounding_box(&self) -> MachineBounds {
-        let FactoryVector3 { x, y, z } = self.position;
-        let MachineSize {
-            width,
-            height,
-            length,
-        } = self.clearance();
-        let width: i16 = width.get().into();
-        let height: i16 = height.get().into();
-        let length: i16 = length.get().into();
-        let (cos, sin, _) = self.rotation.cos_sin_tan();
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "cos and sin of Cardinal2D are guaranteed to be -1, 0, or 1"
-        )]
-        let (cos, sin) = (cos as i16, sin as i16);
-        let width = cos * width + sin * length;
-        let length = sin * width + cos * length;
-        let (mut xs, mut zs) = ([x, x + width], [z, z + length]);
-        for a in [&mut xs, &mut zs] {
-            if !a.is_sorted() {
-                a.reverse();
-            }
-        }
-        let ([xmin, xmax], [zmin, zmax]) = (xs, zs);
-        // height is never negative (at the time of writing)
-        MachineBounds {
-            min: FactoryVector3 {
-                x: xmin,
-                y,
-                z: zmin,
-            },
-            max: FactoryVector3 {
-                x: xmax,
-                y: y + height,
-                z: zmax,
-            },
-        }
-    }
 }
 
 impl DrawMachine for Reactor {
@@ -363,85 +352,6 @@ impl DrawMachine for Reactor {
             size.length.get().into(),
             Color::GRAY,
         );
-    }
-}
-
-#[derive(Debug)]
-#[allow(
-    clippy::struct_field_names,
-    reason = "more resources will be added in the future"
-)]
-pub struct Resources {
-    pub skybox: Texture2D,
-    pub reactor: Model,
-}
-
-impl Resources {
-    pub fn new(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
-        Self {
-            skybox: {
-                let image = Image::gen_image_gradient_radial(
-                    256,
-                    256,
-                    0.1,
-                    Color::DODGERBLUE,
-                    Color::CORAL,
-                );
-                rl.load_texture_from_image(thread, &image).unwrap()
-            },
-            reactor: {
-                // Mesh
-                let mesh = Mesh::gen_mesh_cube(thread, 2.0, 2.0, 3.0);
-
-                let mut mat = rl.load_material_default(thread);
-
-                // Shader
-                let mut shader = rl.load_shader_from_memory(
-                    thread,
-                    Some(include_str!("../assets/lighting.vs")),
-                    Some(include_str!("../assets/lighting.fs")),
-                );
-                assert!(shader.is_shader_valid());
-                shader.set_shader_value(
-                    shader.get_shader_location("ambient"),
-                    Vector4::new(0.2, 0.2, 0.2, 1.0),
-                );
-                Light::new(
-                    LightType::Directional,
-                    Vector3::new(0.0, 50.0, 0.0),
-                    Vector3::ZERO,
-                    Color::WHITE,
-                    &mut shader,
-                )
-                .unwrap();
-                // SAFETY: Material unloads non-default shader on its own
-                *mat.shader_mut() = unsafe { shader.make_weak() };
-
-                // Color
-                *mat.maps_mut()[MaterialMapIndex::MATERIAL_MAP_ALBEDO as usize].color_mut() =
-                    Color::GRAY;
-
-                // Texture
-                let image =
-                    Image::gen_image_gradient_linear(64, 64, 0, Color::GRAY, Color::LIGHTGRAY);
-                let reactor_texture = rl.load_texture_from_image(thread, &image).unwrap();
-                // SAFETY: Material unloads non-default textures on its own
-                mat.set_material_texture(MaterialMapIndex::MATERIAL_MAP_ALBEDO, unsafe {
-                    reactor_texture.make_weak()
-                });
-                assert!(mat.is_material_valid());
-
-                // SAFETY: Model unloads meshes on its own
-                let mut model = rl
-                    .load_model_from_mesh(thread, unsafe { mesh.make_weak() })
-                    .unwrap();
-                model.materials_mut()[0] = mat;
-                model.transform = Matrix::translate(1.0, 1.0, 1.5).into();
-
-                assert!(model.is_model_valid());
-                model
-            },
-        }
     }
 }
 
@@ -499,7 +409,19 @@ impl Factory {
             }
         })
         .chain(self.reactors.iter().map(|reactor| {
-            let bbox = reactor.bounding_box().to_bounding_box();
+            let bbox = reactor.bounds();
+            let bbox = BoundingBox {
+                min: Vector3 {
+                    x: bbox.min.x.into(),
+                    y: bbox.min.y.into(),
+                    z: bbox.min.z.into(),
+                },
+                max: Vector3 {
+                    x: bbox.max.x.into(),
+                    y: bbox.max.y.into(),
+                    z: bbox.max.z.into(),
+                },
+            };
             let RayCollision {
                 hit,
                 distance,
@@ -521,7 +443,7 @@ impl Factory {
     fn draw_world_grid(
         d: &mut impl RaylibDraw3D,
         _thread: &RaylibThread,
-        _resources: &mut Resources,
+        _resources: &Resources,
         player_pos: &PlayerVector3,
         origin: &RailVector3,
     ) {
@@ -568,7 +490,7 @@ impl Factory {
     fn draw_skybox(
         _d: &mut impl RaylibDraw3D,
         _thread: &RaylibThread,
-        resources: &mut Resources,
+        resources: &Resources,
         _player_pos: &PlayerVector3,
         _origin: &RailVector3,
     ) {
@@ -614,7 +536,7 @@ impl Factory {
         &self,
         d: &mut impl RaylibDraw3D,
         thread: &RaylibThread,
-        resources: &mut Resources,
+        resources: &Resources,
         player_pos: &PlayerVector3,
         origin: &RailVector3,
     ) {
@@ -627,7 +549,7 @@ impl Factory {
                 resources.reactor.materials()[0].clone(),
                 matrix,
             );
-            let bounds = reactor.bounding_box();
+            let bounds = reactor.bounds();
             let bbox = BoundingBox {
                 min: bounds.min.to_player_relative(player_pos, origin),
                 max: bounds.max.to_player_relative(player_pos, origin),
@@ -659,14 +581,18 @@ impl Factory {
     fn draw_highlight(
         d: &mut impl RaylibDraw3D,
         _thread: &RaylibThread,
-        _resources: &mut Resources,
+        _resources: &Resources,
         player_pos: &PlayerVector3,
         origin: &RailVector3,
         player_lookat: &FactoryCollision<'_>,
     ) {
         if let Some(target) = player_lookat.target {
             const EXPAND: Vector3 = Vector3::splat(0.025);
-            let mut bbox = target.bounding_box().to_bounding_box();
+            let bbox = target.bounds();
+            let mut bbox = BoundingBox {
+                min: bbox.min.to_player_relative(player_pos, origin),
+                max: bbox.max.to_player_relative(player_pos, origin),
+            };
             bbox.min -= EXPAND;
             bbox.max += EXPAND;
             d.draw_bounding_box(bbox, Color::YELLOW);
@@ -690,20 +616,21 @@ impl Factory {
         }
     }
 
-    pub fn draw<'a>(
-        &'a self,
+    pub fn draw(
+        &self,
         d: &mut impl RaylibDraw3D,
         thread: &RaylibThread,
-        resources: &mut Resources,
+        resources: &Resources,
         player: &Player,
-        player_lookat: Option<&FactoryCollision<'a>>,
     ) {
         let origin = &self.origin;
         let player_pos = &player.position;
+        let player_vision_ray = player.vision_ray();
+        let player_lookat = self.get_ray_collision(player_vision_ray);
 
         Self::draw_world_grid(d, thread, resources, player_pos, origin);
         Self::draw_skybox(d, thread, resources, player_pos, origin);
-        if let Some(player_lookat) = player_lookat {
+        if let Some(player_lookat) = &player_lookat {
             Self::draw_highlight(d, thread, resources, player_pos, origin, player_lookat);
         }
         self.draw_machines(d, thread, resources, player_pos, origin);

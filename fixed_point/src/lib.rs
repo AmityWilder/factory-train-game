@@ -399,14 +399,11 @@ define_fp!(
     urepr: u64,
 );
 
-define_fp!(
-    ibits: 48,
-    fbits: 16,
-    ipart: i32,
-    fpart: u32,
-    repr: i64,
-    urepr: u64,
-);
+impl From<Q16_16> for Q32_32 {
+    fn from(value: Q16_16) -> Self {
+        Self((value.0 as i64) << 16)
+    }
+}
 
 define_fp!(
     ibits: 64,
@@ -416,6 +413,18 @@ define_fp!(
     repr: i128,
     urepr: u128,
 );
+
+impl From<Q16_16> for Q64_64 {
+    fn from(value: Q16_16) -> Self {
+        Self((value.0 as i128) << 48)
+    }
+}
+
+impl From<Q32_32> for Q64_64 {
+    fn from(value: Q32_32) -> Self {
+        Self((value.0 as i128) << 32)
+    }
+}
 
 #[cfg(test)]
 mod test_fixed_point {

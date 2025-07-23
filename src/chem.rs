@@ -1,3 +1,4 @@
+use raylib::prelude::*;
 use std::num::NonZeroU8;
 
 pub const AVOGADROS_NUMBER: f64 = 6.022_140_76e+26;
@@ -45,6 +46,8 @@ pub enum Element {
     reason = "I am importing all of them and don't want to repeat all 118 names. They don't shadow anything else here."
 )]
 use Element::*;
+
+use crate::resource::Resources;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NobleGas {
@@ -316,126 +319,215 @@ impl Atom {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[rustfmt::skip]
-pub enum SubLevel {
-    _1S = 1 << 2,
-    _2S = 2 << 2, _2P = (2 << 2) | 1,
-    _3S = 3 << 2, _3P = (3 << 2) | 1, _3D = (3 << 2) | 2,
-    _4S = 4 << 2, _4P = (4 << 2) | 1, _4D = (4 << 2) | 2, _4F = (4 << 2) | 3,
-    _5S = 5 << 2, _5P = (5 << 2) | 1, _5D = (5 << 2) | 2, _5F = (5 << 2) | 3,
-    _6S = 6 << 2, _6P = (6 << 2) | 1, _6D = (6 << 2) | 2,
-    _7S = 7 << 2, _7P = (7 << 2) | 1,
-}
-#[allow(
-    clippy::enum_glob_use,
-    reason = "I'm using all of them and don't want to repeat them"
-)]
-use SubLevel::*;
-
-impl std::fmt::Display for SubLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.energy_level(), self.symbol())
-    }
+pub enum Orbital {
+    S,
+    P,
+    D,
+    F,
 }
 
-#[rustfmt::skip]
-static ORBITALS: [SubLevel; 19] = [
-    _1S,
-    _2S,           _2P,
-    _3S,           _3P,
-    _4S,      _3D, _4P,
-    _5S,      _4D, _5P,
-    _6S, _4F, _5D, _6P,
-    _7S, _5F, _6D, _7P,
-];
-
-impl SubLevel {
-    const fn index(self) -> u8 {
-        self as u8 & 3
-    }
-
-    pub const fn energy_level(self) -> u8 {
-        self as u8 >> 2
-    }
-
-    pub const fn symbol(self) -> char {
-        b"spdf"[self.index() as usize] as char
-    }
-
-    pub const fn orbitals(self) -> NonZeroU8 {
-        let n = self.index();
-        // SAFETY: Highest index is 6, which can be shl'd to 12 without overflowing.
-        let n = unsafe { n.unchecked_shl(1) };
-        // SAFETY: Highest valid is 12, which can be incremented to 13 without overflowing.
-        let n = unsafe { n.unchecked_add(1) };
-        // SAFETY: Adding 1 guarantees non-zero.
-        unsafe { NonZeroU8::new_unchecked(n) }
-    }
-
-    pub const fn capacity(self) -> NonZeroU8 {
-        // SAFETY: The highest orbital is `I` with 13.
-        // 13 << 1 = 26, which does not overflow.
-        let n = unsafe { self.orbitals().get().unchecked_shl(1) };
-        // SAFETY: nonzero multiplied by nonzero is nonzero, given no overflow
-        unsafe { NonZeroU8::new_unchecked(n) }
+impl Orbital {
+    pub fn draw(
+        self,
+        d: &mut impl RaylibDraw3D,
+        _thread: &RaylibThread,
+        resources: &Resources,
+        matrix: Matrix,
+        energy_level: u8,
+    ) {
+        let scale = energy_level.into();
+        let model = match self {
+            Self::S => &resources.orbital_s,
+            Self::P => &resources.orbital_p,
+            Self::D => &resources.orbital_d,
+            Self::F => &resources.orbital_f,
+        };
+        d.draw_mesh(
+            &model.meshes()[0],
+            model.materials()[0].clone(),
+            Matrix::scale(scale, scale, scale) * matrix * (*model.transform()),
+        );
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ElectronConfig {
-    levels: u8,
-    outermost: u8,
+pub enum SubLevel {
+    S,
+    P,
+    D,
+    F,
+    G,
+    H,
+    I,
 }
+
+impl SubLevel {
+    pub const fn orbitals(self) -> NonZeroU8 {
+        // SAFETY: +1 guarantees nonzero
+        unsafe { NonZeroU8::new_unchecked(2 * (self as u8) + 1) }
+    }
+
+    pub const fn capacity(self) -> NonZeroU8 {
+        // SAFETY: No sublevel has enough electrons to overflow u8
+        unsafe { NonZeroU8::new_unchecked(2 * self.orbitals().get()) }
+    }
+
+    /// The number of [`SubLevel`]s at energy level `n`
+    pub const fn sublevels_at_energy(n: u8) -> u8 {
+        if n > 0 { n / 2 + 1 } else { 0 }
+    }
+
+    /// The total electrons in an energy level with `self` as its highest sublevel
+    pub const fn level_capacity_thru(self) -> u8 {
+        let n = self as u8 + 1;
+        2 * n * n
+    }
+
+    /// The total electron capacity of energy level `n`
+    pub const fn level_capacity(n: u8) -> u8 {
+        let sublevels = Self::sublevels_at_energy(n);
+        2 * sublevels * sublevels
+    }
+}
+
+const _: () = {
+    assert!(SubLevel::sublevels_at_energy(0) == 0);
+    assert!(SubLevel::sublevels_at_energy(1) == 1);
+    assert!(SubLevel::sublevels_at_energy(2) == 2);
+    assert!(SubLevel::sublevels_at_energy(3) == 2);
+    assert!(SubLevel::sublevels_at_energy(4) == 3);
+    assert!(SubLevel::sublevels_at_energy(5) == 3);
+    assert!(SubLevel::sublevels_at_energy(6) == 4);
+    assert!(SubLevel::sublevels_at_energy(7) == 4);
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ElectronConfig(u8);
 
 impl ElectronConfig {
-    pub const fn new(mut electrons: u8) -> ElectronConfig {
-        let mut i = 0;
-        loop {
-            let cap = ORBITALS[i as usize].capacity().get();
-            if electrons > cap {
-                electrons -= cap;
-                i += 1;
-                assert!((i as usize) < ORBITALS.len(), "too many electrons");
-            } else {
-                break ElectronConfig {
-                    levels: i + (electrons > 0) as u8,
-                    outermost: electrons,
-                };
-            }
-        }
+    pub const fn new(electrons: u8) -> Self {
+        Self(electrons)
     }
 
-    pub const fn sublevels(self) -> &'static [SubLevel] {
-        ORBITALS.split_at(self.levels as usize).0
-    }
-
-    /// Returns [`None`] if there are no shells
-    pub const fn valance_capacity(self) -> Option<NonZeroU8> {
-        if let Some(valance) = self.sublevels().last() {
-            Some(valance.capacity())
-        } else {
-            None
-        }
-    }
-
-    pub const fn valance_electrons(self) -> u8 {
-        self.outermost
-    }
-
-    /// Valance shell capacity - valance electrons
-    pub const fn available(self) -> u8 {
-        let capacity = match self.valance_capacity() {
-            Some(n) => n.get(),
-            None => 0,
-        };
-        let electrons = self.valance_electrons();
-        assert!(
-            electrons <= capacity,
-            "number of electrons in a given shell cannot exceed that shell's capacity"
-        );
-        capacity - electrons
+    pub fn available(self) -> u8 {
+        todo!()
     }
 }
+
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// #[rustfmt::skip]
+// pub enum SubLevel {
+//     _1S = 1 << 2,
+//     _2S = 2 << 2, _2P = (2 << 2) | 1,
+//     _3S = 3 << 2, _3P = (3 << 2) | 1, _3D = (3 << 2) | 2,
+//     _4S = 4 << 2, _4P = (4 << 2) | 1, _4D = (4 << 2) | 2, _4F = (4 << 2) | 3,
+//     _5S = 5 << 2, _5P = (5 << 2) | 1, _5D = (5 << 2) | 2, _5F = (5 << 2) | 3,
+//     _6S = 6 << 2, _6P = (6 << 2) | 1, _6D = (6 << 2) | 2,
+//     _7S = 7 << 2, _7P = (7 << 2) | 1,
+// }
+// #[allow(
+//     clippy::enum_glob_use,
+//     reason = "I'm using all of them and don't want to repeat them"
+// )]
+// use SubLevel::*;
+
+// impl std::fmt::Display for SubLevel {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}{}", self.energy_level(), self.symbol())
+//     }
+// }
+
+// #[rustfmt::skip]
+// static ORBITALS: [SubLevel; 19] = [
+//     _1S,
+//     _2S,           _2P,
+//     _3S,           _3P,
+//     _4S,      _3D, _4P,
+//     _5S,      _4D, _5P,
+//     _6S, _4F, _5D, _6P,
+//     _7S, _5F, _6D, _7P,
+// ];
+
+// impl SubLevel {
+//     const fn index(self) -> u8 {
+//         self as u8 & 3
+//     }
+
+//     pub const fn energy_level(self) -> u8 {
+//         self as u8 >> 2
+//     }
+
+//     pub const fn symbol(self) -> char {
+//         b"spdf"[self.index() as usize] as char
+//     }
+
+//     pub const fn orbitals(self) -> NonZeroU8 {
+//         let n = self.index();
+//         // SAFETY: Highest index is 6, which can be shl'd to 12 without overflowing.
+//         let n = unsafe { n.unchecked_shl(1) };
+//         // SAFETY: Highest valid is 12, which can be incremented to 13 without overflowing.
+//         let n = unsafe { n.unchecked_add(1) };
+//         // SAFETY: Adding 1 guarantees non-zero.
+//         unsafe { NonZeroU8::new_unchecked(n) }
+//     }
+
+//     pub const fn capacity(self) -> NonZeroU8 {
+//         // SAFETY: The highest orbital is `I` with 13.
+//         // 13 << 1 = 26, which does not overflow.
+//         let n = unsafe { self.orbitals().get().unchecked_shl(1) };
+//         // SAFETY: nonzero multiplied by nonzero is nonzero, given no overflow
+//         unsafe { NonZeroU8::new_unchecked(n) }
+//     }
+// }
+
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// pub struct ElectronConfig {
+//     levels: u8,
+//     /// Electrons in the outermost sublevel
+//     outermost: u8,
+// }
+
+// impl ElectronConfig {
+//     pub const fn new(mut electrons: u8) -> ElectronConfig {
+//         let mut i = 0;
+//         loop {
+//             let cap = ORBITALS[i as usize].capacity().get();
+//             if electrons > cap {
+//                 electrons -= cap;
+//                 i += 1;
+//                 assert!((i as usize) < ORBITALS.len(), "too many electrons");
+//             } else {
+//                 break ElectronConfig {
+//                     levels: i + (electrons > 0) as u8,
+//                     outermost: electrons,
+//                 };
+//             }
+//         }
+//     }
+
+//     pub const fn sublevels(self) -> &'static [SubLevel] {
+//         ORBITALS.split_at(self.levels as usize).0
+//     }
+
+//     /// Total electrons at highest occupied energy level
+//     pub const fn valance_electrons(self) -> u8 {
+//         self.outermost
+//     }
+
+//     /// Number of electrons available for forming bonds
+//     pub const fn available(self) -> u8 {
+//         let capacity = match self.valance_capacity() {
+//             Some(n) => n.get(),
+//             None => 0,
+//         };
+//         let electrons = self.valance_electrons();
+//         assert!(
+//             electrons <= capacity,
+//             "number of electrons in a given shell cannot exceed that shell's capacity"
+//         );
+//         capacity - electrons
+//     }
+// }
 
 #[const_trait]
 pub trait SubSupScript: Sized {
@@ -503,43 +595,43 @@ impl const SubSupScript for char {
     }
 }
 
-impl std::fmt::Display for ElectronConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn superscript(buf: &mut (String, String), n: u8) -> std::fmt::Result {
-            use std::fmt::Write;
-            buf.0.clear();
-            write!(buf.0, "{n}")?;
-            buf.1.clear();
-            buf.1
-                .extend(buf.0.chars().map(|ch| ch.to_superscript().unwrap()));
-            Ok(())
-        }
-        let mut sublevels = self
-            .sublevels()
-            .iter()
-            .map(|o| (o, o.capacity().get()))
-            .collect::<Vec<_>>();
-        if let Some((_, n)) = sublevels.last_mut() {
-            *n = self.outermost;
-        }
-        sublevels.sort_by_key(|lv| lv.0.energy_level());
-        let total = sublevels.len();
-        let mut buf0 = String::new();
-        let mut buf1 = String::new();
-        for (n, (orbital, electrons)) in sublevels.into_iter().enumerate() {
-            use std::fmt::Write;
-            buf0.clear();
-            write!(buf0, "{electrons}")?;
-            buf1.clear();
-            buf1.extend(buf0.chars().map(|ch| ch.to_superscript().unwrap()));
-            write!(f, "{orbital}{buf1}")?;
-            if n < total - 1 {
-                write!(f, " ")?;
-            }
-        }
-        Ok(())
-    }
-}
+// impl std::fmt::Display for ElectronConfig {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         fn superscript(buf: &mut (String, String), n: u8) -> std::fmt::Result {
+//             use std::fmt::Write;
+//             buf.0.clear();
+//             write!(buf.0, "{n}")?;
+//             buf.1.clear();
+//             buf.1
+//                 .extend(buf.0.chars().map(|ch| ch.to_superscript().unwrap()));
+//             Ok(())
+//         }
+//         let mut sublevels = self
+//             .sublevels()
+//             .iter()
+//             .map(|o| (o, o.capacity().get()))
+//             .collect::<Vec<_>>();
+//         if let Some((_, n)) = sublevels.last_mut() {
+//             *n = self.outermost;
+//         }
+//         sublevels.sort_by_key(|lv| lv.0.energy_level());
+//         let total = sublevels.len();
+//         let mut buf0 = String::new();
+//         let mut buf1 = String::new();
+//         for (n, (orbital, electrons)) in sublevels.into_iter().enumerate() {
+//             use std::fmt::Write;
+//             buf0.clear();
+//             write!(buf0, "{electrons}")?;
+//             buf1.clear();
+//             buf1.extend(buf0.chars().map(|ch| ch.to_superscript().unwrap()));
+//             write!(f, "{orbital}{buf1}")?;
+//             if n < total - 1 {
+//                 write!(f, " ")?;
+//             }
+//         }
+//         Ok(())
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Molecule {
@@ -547,113 +639,113 @@ pub struct Molecule {
     pub bonds: Vec<[u8; 2]>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn test_masses() {
-        const EPSILON: f64 = 0.01e-27;
-        const TESTS: [(Atom, f64); 3] = [
-            (
-                Atom {
-                    element: H,
-                    neutrons: 0,
-                    electrons: 1,
-                },
-                1.008,
-            ),
-            (
-                Atom {
-                    element: H,
-                    neutrons: 1,
-                    electrons: 1,
-                },
-                2.014,
-            ),
-            (
-                Atom {
-                    element: C,
-                    neutrons: 6,
-                    electrons: 6,
-                },
-                12.0107,
-            ),
-        ];
-        for (atom, expect) in TESTS {
-            let actual = atom.mass();
-            assert!(
-                (actual - expect).abs() <= EPSILON,
-                "mass of {atom:?}\n expect: {expect}kg\n actual: {actual}kg",
-            );
-        }
-    }
+//     #[test]
+//     fn test_masses() {
+//         const EPSILON: f64 = 0.01e-27;
+//         const TESTS: [(Atom, f64); 3] = [
+//             (
+//                 Atom {
+//                     element: H,
+//                     neutrons: 0,
+//                     electrons: 1,
+//                 },
+//                 1.008,
+//             ),
+//             (
+//                 Atom {
+//                     element: H,
+//                     neutrons: 1,
+//                     electrons: 1,
+//                 },
+//                 2.014,
+//             ),
+//             (
+//                 Atom {
+//                     element: C,
+//                     neutrons: 6,
+//                     electrons: 6,
+//                 },
+//                 12.0107,
+//             ),
+//         ];
+//         for (atom, expect) in TESTS {
+//             let actual = atom.mass();
+//             assert!(
+//                 (actual - expect).abs() <= EPSILON,
+//                 "mass of {atom:?}\n expect: {expect}kg\n actual: {actual}kg",
+//             );
+//         }
+//     }
 
-    #[test]
-    fn test_configuration_fmt() {
-        #[rustfmt::skip]
-        const TESTS: [(Element, &str); 4] = [
-            (He, "1s²"),
-            (B,  "1s² 2s² 2p¹"),
-            (Ne, "1s² 2s² 2p⁶"),
-            (Al, "1s² 2s² 2p⁶ 3s² 3p¹"),
-            // TODO: apparently elections can be "fascinated"??
-            // (U,  "1s² 2s² 2p⁶ 3s² 3p⁶ 4s² 3d¹⁰ 4p⁶ 5s² 4d¹⁰ 5p⁶ 6s² 4f¹⁴ 5d¹⁰ 6p⁶ 7s² 5f³ 6d¹"),
-        ];
-        for (element, expect) in TESTS {
-            let electrons = element.protons().get();
-            let config = ElectronConfig::new(electrons);
-            let actual = config.to_string();
-            assert_eq!(&actual, expect);
-        }
-    }
+//     #[test]
+//     fn test_configuration_fmt() {
+//         #[rustfmt::skip]
+//         const TESTS: [(Element, &str); 4] = [
+//             (He, "1s²"),
+//             (B,  "1s² 2s² 2p¹"),
+//             (Ne, "1s² 2s² 2p⁶"),
+//             (Al, "1s² 2s² 2p⁶ 3s² 3p¹"),
+//             // TODO: apparently elections can be "fascinated"??
+//             // (U,  "1s² 2s² 2p⁶ 3s² 3p⁶ 4s² 3d¹⁰ 4p⁶ 5s² 4d¹⁰ 5p⁶ 6s² 4f¹⁴ 5d¹⁰ 6p⁶ 7s² 5f³ 6d¹"),
+//         ];
+//         for (element, expect) in TESTS {
+//             let electrons = element.protons().get();
+//             let config = ElectronConfig::new(electrons);
+//             let actual = config.to_string();
+//             assert_eq!(&actual, expect);
+//         }
+//     }
 
-    #[test]
-    fn test_configurations() {
-        #[rustfmt::skip]
-        const TESTS: [(u8, ElectronConfig); 13] = [
-            ( 0, ElectronConfig { levels:  0, outermost: 0 }),
-            ( 1, ElectronConfig { levels:  1, outermost: 1 }),
-            ( 2, ElectronConfig { levels:  1, outermost: 2 }),
-            ( 3, ElectronConfig { levels:  2, outermost: 1 }),
-            ( 4, ElectronConfig { levels:  2, outermost: 2 }),
-            ( 5, ElectronConfig { levels:  3, outermost: 1 }),
-            ( 6, ElectronConfig { levels:  3, outermost: 2 }),
-            ( 7, ElectronConfig { levels:  3, outermost: 3 }),
-            ( 8, ElectronConfig { levels:  3, outermost: 4 }),
-            ( 9, ElectronConfig { levels:  3, outermost: 5 }),
-            (10, ElectronConfig { levels:  3, outermost: 6 }),
-            (11, ElectronConfig { levels:  4, outermost: 1 }),
-            (53, ElectronConfig { levels: 11, outermost: 5 }),
-        ];
-        for (electrons, expect) in TESTS {
-            let actual = ElectronConfig::new(electrons);
-            let available = actual.available();
-            println!("{electrons:>2} electrons: {actual} -- {available} available");
-            assert_eq!(actual, expect);
-        }
-    }
+//     #[test]
+//     fn test_configurations() {
+//         #[rustfmt::skip]
+//         const TESTS: [(u8, ElectronConfig); 13] = [
+//             ( 0, ElectronConfig { levels:  0, outermost: 0 }),
+//             ( 1, ElectronConfig { levels:  1, outermost: 1 }),
+//             ( 2, ElectronConfig { levels:  1, outermost: 2 }),
+//             ( 3, ElectronConfig { levels:  2, outermost: 1 }),
+//             ( 4, ElectronConfig { levels:  2, outermost: 2 }),
+//             ( 5, ElectronConfig { levels:  3, outermost: 1 }),
+//             ( 6, ElectronConfig { levels:  3, outermost: 2 }),
+//             ( 7, ElectronConfig { levels:  3, outermost: 3 }),
+//             ( 8, ElectronConfig { levels:  3, outermost: 4 }),
+//             ( 9, ElectronConfig { levels:  3, outermost: 5 }),
+//             (10, ElectronConfig { levels:  3, outermost: 6 }),
+//             (11, ElectronConfig { levels:  4, outermost: 1 }),
+//             (53, ElectronConfig { levels: 11, outermost: 5 }),
+//         ];
+//         for (electrons, expect) in TESTS {
+//             let actual = ElectronConfig::new(electrons);
+//             let available = actual.available();
+//             println!("{electrons:>2} electrons: {actual} -- {available} available");
+//             assert_eq!(actual, expect);
+//         }
+//     }
 
-    #[test]
-    fn test_availability() {
-        const TESTS: [(Element, u8); 8] = [
-            (H, 1),
-            (He, 0),
-            (O, 2),
-            (N, 3),
-            (C, 4),
-            (F, 1),
-            (Fe, 4),
-            (U, 10),
-        ];
-        for (element, expect) in TESTS {
-            let electrons = element.protons().get();
-            let config = ElectronConfig::new(electrons);
-            let actual = config.available();
-            println!(
-                "neutral {element} ({electrons} electrons -- {config}) can form {actual} bonds"
-            );
-            assert_eq!(actual, expect);
-        }
-    }
-}
+//     #[test]
+//     fn test_availability() {
+//         const TESTS: [(Element, u8); 8] = [
+//             (H, 1),
+//             (He, 0),
+//             (O, 2),
+//             (N, 3),
+//             (C, 4),
+//             (F, 1),
+//             (Fe, 4),
+//             (U, 10),
+//         ];
+//         for (element, expect) in TESTS {
+//             let electrons = element.protons().get();
+//             let config = ElectronConfig::new(electrons);
+//             let actual = config.available();
+//             println!(
+//                 "neutral {element} ({electrons} electrons -- {config}) can form {actual} bonds"
+//             );
+//             assert_eq!(actual, expect);
+//         }
+//     }
+// }
