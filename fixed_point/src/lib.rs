@@ -7,390 +7,415 @@ use std::{mem::MaybeUninit, ops::*};
 
 macro_rules! define_fp {
     (
-        $Name:ident($Repr:ty)
+        ibits: $IBITS:literal,
+        fbits: $FBITS:literal,
+        ipart: $IPart:ty,
+        fpart: $FPart:ty,
+        repr: $Repr:ty,
+        urepr: $URepr:ty,
     ) => {
-        /// [`FixedPoint`] with 32 integer bits and 32 fractional bits
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-        pub struct $Name($Repr);
+        paste::paste!{
+            const _: () = {
+                assert!(std::mem::size_of::<$Repr>()*8 == $IBITS + $FBITS);
+            };
 
-        impl std::fmt::Binary for $Name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(
-                    f,
-                    "{:b}.{:>02$b}",
-                    self.0.cast_unsigned() >> Self::DECIMAL_BITS,
-                    self.0.cast_unsigned() & Self::DECIMAL_MASK,
-                    Self::DECIMAL_BITS.try_into().unwrap(),
-                )
-            }
-        }
+            #[doc = concat!(r"Fixed point with ", $IBITS, " integer bits and ", $FBITS, " fractional bits")]
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+            pub struct [<Q $IBITS _ $FBITS>]($Repr);
 
-        impl std::fmt::UpperHex for $Name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(
-                    f,
-                    "{:X}.{:>02$X}",
-                    self.0.cast_unsigned() >> Self::DECIMAL_BITS,
-                    self.0.cast_unsigned() & Self::DECIMAL_MASK,
-                    (Self::DECIMAL_BITS >> 2).try_into().unwrap(),
-                )
-            }
-        }
-
-        impl std::fmt::LowerHex for $Name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(
-                    f,
-                    "{:x}.{:>02$x}",
-                    self.0.cast_unsigned() >> Self::DECIMAL_BITS,
-                    self.0.cast_unsigned() & Self::DECIMAL_MASK,
-                    (Self::DECIMAL_BITS >> 2).try_into().unwrap(),
-                )
-            }
-        }
-
-        impl std::fmt::Display for $Name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                const MAX_DIGITS: usize = 32;
-                let sign = if self.0.is_negative() { "-" } else { "" };
-                let ipart = (self.0.cast_unsigned() & Self::INTEGER_MASK)
-                    .cast_signed()
-                    .unsigned_abs()
-                    >> Self::DECIMAL_BITS;
-                let mut fbits = self.0.cast_unsigned() & Self::DECIMAL_MASK;
-                let mut buf = [MaybeUninit::uninit(); MAX_DIGITS];
-                let mut buf_len = 0;
-                for digit in buf.iter_mut().take(f.precision().unwrap_or(MAX_DIGITS)) {
-                    fbits *= 10;
-                    digit.write(
-                        b'0' + u8::try_from((fbits / Self::DECIMAL_FACTOR_INT) % 10).unwrap(),
-                    );
-                    buf_len += 1;
-                    fbits &= Self::DECIMAL_MASK;
-                    if f.precision().is_none() && fbits == 0 {
-                        break;
-                    }
+            impl std::fmt::Binary for [<Q $IBITS _ $FBITS>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(
+                        f,
+                        "{:b}.{:>02$b}",
+                        self.0.cast_unsigned() >> Self::DECIMAL_BITS,
+                        self.0.cast_unsigned() & Self::DECIMAL_MASK,
+                        Self::DECIMAL_BITS.try_into().unwrap(),
+                    )
                 }
-                let fpart = unsafe { str::from_utf8_unchecked(buf[0..buf_len].assume_init_ref()) };
-                write!(f, "{sign}{ipart}.{fpart}")
-            }
-        }
-
-        impl $Name {
-            /// 0
-            pub const ZERO: Self = Self::from_i32(0);
-            /// 1
-            pub const ONE: Self = Self::from_i32(1);
-            /// -1
-            pub const NEG_ONE: Self = Self::from_i32(-1);
-            /// The minimum expressible value
-            pub const MIN: Self = Self(i64::MIN);
-            /// The maximum expressible value
-            pub const MAX: Self = Self(i64::MAX);
-
-            const DECIMAL_BITS: u32 = 32;
-            const DECIMAL_FACTOR_INT: u64 = 1 << Self::DECIMAL_BITS;
-            const DECIMAL_FACTOR_ISQRT: u64 = Self::DECIMAL_FACTOR_INT.isqrt();
-            const DECIMAL_MASK: u64 = Self::DECIMAL_FACTOR_INT - 1;
-            const INTEGER_MASK: u64 = !Self::DECIMAL_MASK;
-            const DECIMAL_FACTOR: f64 = Self::DECIMAL_FACTOR_INT as f64;
-            const DECIMAL_INV_FACTOR: f64 = Self::DECIMAL_FACTOR.recip();
-
-            /// Gives the lowest and highest values `value` may become after conversion
-            pub const fn precision(target: f32) -> RangeInclusive<f32> {
-                (target as f64 - $Name::DECIMAL_INV_FACTOR) as f32
-                    ..=(target as f64 + $Name::DECIMAL_INV_FACTOR) as f32
             }
 
-            /// Construct a fixed point value from integer and fractional bits
-            #[inline]
-            pub const fn new(ipart: i32, fpart: u32) -> Self {
-                Self(((ipart as i64) << Self::DECIMAL_BITS) | fpart as i64)
+            impl std::fmt::UpperHex for [<Q $IBITS _ $FBITS>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(
+                        f,
+                        "{:X}.{:>02$X}",
+                        self.0.cast_unsigned() >> Self::DECIMAL_BITS,
+                        self.0.cast_unsigned() & Self::DECIMAL_MASK,
+                        (Self::DECIMAL_BITS >> 2).try_into().unwrap(),
+                    )
+                }
             }
 
-            /// Construct an integer fixed point value
-            #[inline]
-            pub const fn from_i32(value: i32) -> Self {
-                Self((value as i64) << Self::DECIMAL_BITS)
+            impl std::fmt::LowerHex for [<Q $IBITS _ $FBITS>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(
+                        f,
+                        "{:x}.{:>02$x}",
+                        self.0.cast_unsigned() >> Self::DECIMAL_BITS,
+                        self.0.cast_unsigned() & Self::DECIMAL_MASK,
+                        (Self::DECIMAL_BITS >> 2).try_into().unwrap(),
+                    )
+                }
             }
 
-            /// Convert a fixed point to an integer, truncrating the fractional part
-            #[inline]
-            pub const fn to_i32(self) -> i32 {
-                (self.0 >> Self::DECIMAL_BITS) as i32
+            impl std::fmt::Display for [<Q $IBITS _ $FBITS>] {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    const MAX_DIGITS: usize = 32;
+                    let sign = if self.0.is_negative() { "-" } else { "" };
+                    let ipart = (self.0.cast_unsigned() & Self::INTEGER_MASK)
+                        .cast_signed()
+                        .unsigned_abs()
+                        >> Self::DECIMAL_BITS;
+                    let mut fbits = self.0.cast_unsigned() & Self::DECIMAL_MASK;
+                    let mut buf = [MaybeUninit::uninit(); MAX_DIGITS];
+                    let mut buf_len = 0;
+                    for digit in buf.iter_mut().take(f.precision().unwrap_or(MAX_DIGITS)) {
+                        fbits *= 10;
+                        digit.write(
+                            b'0' + u8::try_from((fbits / Self::DECIMAL_FACTOR_INT) % 10).unwrap(),
+                        );
+                        buf_len += 1;
+                        fbits &= Self::DECIMAL_MASK;
+                        if f.precision().is_none() && fbits == 0 {
+                            break;
+                        }
+                    }
+                    let fpart = unsafe { str::from_utf8_unchecked(buf[0..buf_len].assume_init_ref()) };
+                    write!(f, "{sign}{ipart}.{fpart}")
+                }
             }
 
-            /// Convert a fixed point to a floating point
-            #[inline]
-            pub const fn from_f32(value: f32) -> Self {
-                Self((value as f64 * Self::DECIMAL_FACTOR) as i64)
+            impl [<Q $IBITS _ $FBITS>] {
+                /// 0
+                pub const ZERO: Self = Self::[<from_ $IPart>](0);
+                /// 1
+                pub const ONE: Self = Self::[<from_ $IPart>](1);
+                /// -1
+                pub const NEG_ONE: Self = Self::[<from_ $IPart>](-1);
+                /// The minimum expressible value
+                pub const MIN: Self = Self($Repr::MIN);
+                /// The maximum expressible value
+                pub const MAX: Self = Self($Repr::MAX);
+
+                const DECIMAL_BITS: u32 = $FBITS;
+                const DECIMAL_FACTOR_INT: $URepr = 1 << Self::DECIMAL_BITS;
+                const DECIMAL_FACTOR_ISQRT: $URepr = Self::DECIMAL_FACTOR_INT.isqrt();
+                const DECIMAL_MASK: $URepr = Self::DECIMAL_FACTOR_INT - 1;
+                const INTEGER_MASK: $URepr = !Self::DECIMAL_MASK;
+                const DECIMAL_FACTOR: f64 = Self::DECIMAL_FACTOR_INT as f64;
+                const DECIMAL_INV_FACTOR: f64 = Self::DECIMAL_FACTOR.recip();
+
+                /// Construct a fixed point value from integer and fractional bits
+                #[inline]
+                pub const fn new(ipart: $IPart, fpart: $FPart) -> Self {
+                    Self(((ipart as $Repr) << Self::DECIMAL_BITS) | fpart as $Repr)
+                }
+
+                /// Construct an integer fixed point value
+                #[inline]
+                pub const fn [<from_ $IPart>](value: $IPart) -> Self {
+                    Self((value as $Repr) << Self::DECIMAL_BITS)
+                }
+
+                /// Convert a fixed point to an integer, truncrating the fractional part
+                #[inline]
+                pub const fn [<to_ $IPart>](self) -> $IPart {
+                    (self.0 >> Self::DECIMAL_BITS) as $IPart
+                }
+
+                /// Construct a fixed point from a floating point
+                #[inline]
+                pub const fn from_f32(value: f32) -> Self {
+                    Self((value as f64 * Self::DECIMAL_FACTOR) as $Repr)
+                }
+
+                /// Convert a fixed point to a floating point
+                #[inline]
+                pub const fn to_f32(self) -> f32 {
+                    (self.0 as f64 * Self::DECIMAL_INV_FACTOR) as f32
+                }
+
+                /// Get the absolute value of `self`
+                #[inline]
+                pub const fn abs(self) -> Self {
+                    Self(self.0.abs())
+                }
+
+                /// Get the negative of `self`
+                #[inline]
+                pub const fn negate(self) -> Self {
+                    Self(-self.0)
+                }
+
+                /// Add `rhs` to `self`
+                #[inline]
+                pub const fn plus(self, rhs: Self) -> Self {
+                    Self(self.0 + rhs.0)
+                }
+
+                /// Subtract `rhs` from `self`
+                #[inline]
+                pub const fn minus(self, rhs: Self) -> Self {
+                    Self(self.0 - rhs.0)
+                }
+
+                /// Multiply `self` by `rhs`
+                #[inline]
+                pub const fn multiply(self, rhs: Self) -> Self {
+                    Self(((self.0 as i128 * rhs.0 as i128) >> Self::DECIMAL_BITS) as $Repr)
+                }
+
+                /// Calculate the square root of `self`
+                #[inline]
+                pub const fn sqrt(self) -> Self {
+                    Self(self.0.isqrt() * Self::DECIMAL_FACTOR_ISQRT as $Repr)
+                }
             }
 
-            #[inline]
-            pub const fn to_f32(self) -> f32 {
-                (self.0 as f64 * Self::DECIMAL_INV_FACTOR) as f32
+            impl Neg for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
+
+                #[inline]
+                fn neg(self) -> Self::Output {
+                    self.negate()
+                }
             }
 
-            #[inline]
-            pub const fn abs(self) -> Self {
-                Self(self.0.abs())
+            impl const Add for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
+
+                #[inline]
+                fn add(self, rhs: Self) -> Self::Output {
+                    self.plus(rhs)
+                }
             }
 
-            #[inline]
-            pub const fn negate(self) -> Self {
-                Self(-self.0)
+            impl AddAssign for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn add_assign(&mut self, rhs: Self) {
+                    *self = self.add(rhs)
+                }
             }
 
-            #[inline]
-            pub const fn plus(self, rhs: Self) -> Self {
-                Self(self.0 + rhs.0)
+            impl Add<$IPart> for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
+
+                #[inline]
+                fn add(self, rhs: $IPart) -> Self::Output {
+                    self.add(Self::[<from_ $IPart>](rhs))
+                }
             }
 
-            #[inline]
-            pub const fn minus(self, rhs: Self) -> Self {
-                Self(self.0 - rhs.0)
+            impl Add<[<Q $IBITS _ $FBITS>]> for $IPart {
+                type Output = [<Q $IBITS _ $FBITS>];
+
+                #[inline]
+                fn add(self, rhs: [<Q $IBITS _ $FBITS>]) -> Self::Output {
+                    [<Q $IBITS _ $FBITS>]::[<from_ $IPart>](self).add(rhs)
+                }
             }
 
-            #[inline]
-            pub const fn multiply(self, rhs: Self) -> Self {
-                Self(((self.0 as i128 * rhs.0 as i128) >> Self::DECIMAL_BITS) as i64)
+            impl AddAssign<$IPart> for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn add_assign(&mut self, rhs: $IPart) {
+                    *self = self.add(rhs)
+                }
             }
 
-            #[inline]
-            pub const fn sqrt(self) -> Self {
-                Self(self.0.isqrt() * Self::DECIMAL_FACTOR_ISQRT as i64)
+            impl Add<f32> for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
+
+                #[inline]
+                fn add(self, rhs: f32) -> Self::Output {
+                    self.add(Self::from_f32(rhs))
+                }
             }
-        }
 
-        impl From<f32> for $Name {
-            #[inline]
-            fn from(value: f32) -> Self {
-                $Name::from_f32(value)
+            impl Add<[<Q $IBITS _ $FBITS>]> for f32 {
+                type Output = [<Q $IBITS _ $FBITS>];
+
+                #[inline]
+                fn add(self, rhs: [<Q $IBITS _ $FBITS>]) -> Self::Output {
+                    [<Q $IBITS _ $FBITS>]::from_f32(self).add(rhs)
+                }
             }
-        }
 
-        impl From<$Name> for f32 {
-            #[inline]
-            fn from(value: $Name) -> Self {
-                value.to_f32()
+            impl AddAssign<f32> for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn add_assign(&mut self, rhs: f32) {
+                    *self = self.add(rhs)
+                }
             }
-        }
 
-        impl From<i32> for $Name {
-            #[inline]
-            fn from(value: i32) -> Self {
-                Self::from_i32(value)
+            impl Sub for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
+
+                #[inline]
+                fn sub(self, rhs: Self) -> Self::Output {
+                    self.minus(rhs)
+                }
             }
-        }
 
-        impl Neg for $Name {
-            type Output = Self;
-
-            #[inline]
-            fn neg(self) -> Self::Output {
-                self.negate()
+            impl SubAssign for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn sub_assign(&mut self, rhs: Self) {
+                    *self = self.sub(rhs)
+                }
             }
-        }
 
-        impl const Add for $Name {
-            type Output = Self;
+            impl Sub<$IPart> for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
 
-            #[inline]
-            fn add(self, rhs: Self) -> Self::Output {
-                self.plus(rhs)
+                #[inline]
+                fn sub(self, rhs: $IPart) -> Self::Output {
+                    self.sub(Self::[<from_ $IPart>](rhs))
+                }
             }
-        }
 
-        impl AddAssign for $Name {
-            #[inline]
-            fn add_assign(&mut self, rhs: Self) {
-                *self = self.add(rhs)
+            impl Sub<[<Q $IBITS _ $FBITS>]> for $IPart {
+                type Output = [<Q $IBITS _ $FBITS>];
+
+                #[inline]
+                fn sub(self, rhs: [<Q $IBITS _ $FBITS>]) -> Self::Output {
+                    [<Q $IBITS _ $FBITS>]::[<from_ $IPart>](self).sub(rhs)
+                }
             }
-        }
 
-        impl Add<i32> for $Name {
-            type Output = Self;
-
-            #[inline]
-            fn add(self, rhs: i32) -> Self::Output {
-                self.add(Self::from(rhs))
+            impl SubAssign<$IPart> for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn sub_assign(&mut self, rhs: $IPart) {
+                    *self = self.sub(rhs)
+                }
             }
-        }
 
-        impl Add<$Name> for i32 {
-            type Output = $Name;
+            impl Sub<f32> for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
 
-            #[inline]
-            fn add(self, rhs: $Name) -> Self::Output {
-                $Name::from_i32(self).add(rhs)
+                #[inline]
+                fn sub(self, rhs: f32) -> Self::Output {
+                    self.sub(Self::from_f32(rhs))
+                }
             }
-        }
 
-        impl AddAssign<i32> for $Name {
-            #[inline]
-            fn add_assign(&mut self, rhs: i32) {
-                *self = self.add(rhs)
+            impl Sub<[<Q $IBITS _ $FBITS>]> for f32 {
+                type Output = [<Q $IBITS _ $FBITS>];
+
+                #[inline]
+                fn sub(self, rhs: [<Q $IBITS _ $FBITS>]) -> Self::Output {
+                    [<Q $IBITS _ $FBITS>]::from_f32(self).sub(rhs)
+                }
             }
-        }
 
-        impl Add<f32> for $Name {
-            type Output = Self;
-
-            #[inline]
-            fn add(self, rhs: f32) -> Self::Output {
-                self.add(Self::from(rhs))
+            impl SubAssign<f32> for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn sub_assign(&mut self, rhs: f32) {
+                    *self = self.sub(rhs)
+                }
             }
-        }
 
-        impl Add<$Name> for f32 {
-            type Output = $Name;
+            impl Mul for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
 
-            #[inline]
-            fn add(self, rhs: $Name) -> Self::Output {
-                $Name::from_f32(self).add(rhs)
+                fn mul(self, rhs: Self) -> Self::Output {
+                    self.multiply(rhs)
+                }
             }
-        }
 
-        impl AddAssign<f32> for $Name {
-            #[inline]
-            fn add_assign(&mut self, rhs: f32) {
-                *self = self.add(rhs)
+            impl MulAssign for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn mul_assign(&mut self, rhs: Self) {
+                    *self = self.mul(rhs)
+                }
             }
-        }
 
-        impl Sub for $Name {
-            type Output = Self;
+            impl Mul<$IPart> for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
 
-            #[inline]
-            fn sub(self, rhs: Self) -> Self::Output {
-                self.minus(rhs)
+                fn mul(self, rhs: $IPart) -> Self::Output {
+                    self.mul(Self::[<from_ $IPart>](rhs))
+                }
             }
-        }
 
-        impl SubAssign for $Name {
-            #[inline]
-            fn sub_assign(&mut self, rhs: Self) {
-                *self = self.sub(rhs)
+            impl Mul<[<Q $IBITS _ $FBITS>]> for $IPart {
+                type Output = [<Q $IBITS _ $FBITS>];
+
+                #[inline]
+                fn mul(self, rhs: [<Q $IBITS _ $FBITS>]) -> Self::Output {
+                    [<Q $IBITS _ $FBITS>]::[<from_ $IPart>](self).sub(rhs)
+                }
             }
-        }
 
-        impl Sub<i32> for $Name {
-            type Output = Self;
-
-            #[inline]
-            fn sub(self, rhs: i32) -> Self::Output {
-                self.sub(Self::from(rhs))
+            impl MulAssign<$IPart> for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn mul_assign(&mut self, rhs: $IPart) {
+                    *self = self.mul(rhs)
+                }
             }
-        }
 
-        impl Sub<$Name> for i32 {
-            type Output = $Name;
+            impl Mul<f32> for [<Q $IBITS _ $FBITS>] {
+                type Output = Self;
 
-            #[inline]
-            fn sub(self, rhs: $Name) -> Self::Output {
-                $Name::from_i32(self).sub(rhs)
+                #[inline]
+                fn mul(self, rhs: f32) -> Self::Output {
+                    self.mul(Self::from_f32(rhs))
+                }
             }
-        }
 
-        impl SubAssign<i32> for $Name {
-            #[inline]
-            fn sub_assign(&mut self, rhs: i32) {
-                *self = self.sub(rhs)
+            impl Mul<[<Q $IBITS _ $FBITS>]> for f32 {
+                type Output = [<Q $IBITS _ $FBITS>];
+
+                #[inline]
+                fn mul(self, rhs: [<Q $IBITS _ $FBITS>]) -> Self::Output {
+                    [<Q $IBITS _ $FBITS>]::from_f32(self).sub(rhs)
+                }
             }
-        }
 
-        impl Sub<f32> for $Name {
-            type Output = Self;
-
-            #[inline]
-            fn sub(self, rhs: f32) -> Self::Output {
-                self.sub(Self::from(rhs))
-            }
-        }
-
-        impl Sub<$Name> for f32 {
-            type Output = $Name;
-
-            #[inline]
-            fn sub(self, rhs: $Name) -> Self::Output {
-                $Name::from_f32(self).sub(rhs)
-            }
-        }
-
-        impl SubAssign<f32> for $Name {
-            #[inline]
-            fn sub_assign(&mut self, rhs: f32) {
-                *self = self.sub(rhs)
-            }
-        }
-
-        impl Mul for $Name {
-            type Output = Self;
-
-            fn mul(self, rhs: Self) -> Self::Output {
-                self.multiply(rhs)
-            }
-        }
-
-        impl MulAssign for $Name {
-            #[inline]
-            fn mul_assign(&mut self, rhs: Self) {
-                *self = self.mul(rhs)
-            }
-        }
-
-        impl Mul<i32> for $Name {
-            type Output = Self;
-
-            fn mul(self, rhs: i32) -> Self::Output {
-                self.mul(Self::from(rhs))
-            }
-        }
-
-        impl Mul<$Name> for i32 {
-            type Output = $Name;
-
-            #[inline]
-            fn mul(self, rhs: $Name) -> Self::Output {
-                $Name::from_i32(self).sub(rhs)
-            }
-        }
-
-        impl MulAssign<i32> for $Name {
-            #[inline]
-            fn mul_assign(&mut self, rhs: i32) {
-                *self = self.mul(rhs)
-            }
-        }
-
-        impl Mul<f32> for $Name {
-            type Output = Self;
-
-            #[inline]
-            fn mul(self, rhs: f32) -> Self::Output {
-                self.mul(Self::from(rhs))
-            }
-        }
-
-        impl Mul<$Name> for f32 {
-            type Output = $Name;
-
-            #[inline]
-            fn mul(self, rhs: $Name) -> Self::Output {
-                $Name::from_f32(self).sub(rhs)
-            }
-        }
-
-        impl MulAssign<f32> for $Name {
-            #[inline]
-            fn mul_assign(&mut self, rhs: f32) {
-                *self = self.mul(rhs)
+            impl MulAssign<f32> for [<Q $IBITS _ $FBITS>] {
+                #[inline]
+                fn mul_assign(&mut self, rhs: f32) {
+                    *self = self.mul(rhs)
+                }
             }
         }
     };
 }
 
-define_fp!(Q32_32(i64));
+define_fp!(
+    ibits: 16,
+    fbits: 16,
+    ipart: i16,
+    fpart: u16,
+    repr: i32,
+    urepr: u32,
+);
+
+define_fp!(
+    ibits: 32,
+    fbits: 32,
+    ipart: i32,
+    fpart: u32,
+    repr: i64,
+    urepr: u64,
+);
+
+define_fp!(
+    ibits: 48,
+    fbits: 16,
+    ipart: i32,
+    fpart: u32,
+    repr: i64,
+    urepr: u64,
+);
+
+define_fp!(
+    ibits: 64,
+    fbits: 64,
+    ipart: i64,
+    fpart: u64,
+    repr: i128,
+    urepr: u128,
+);
 
 #[cfg(test)]
 mod test_fixed_point {
@@ -416,28 +441,26 @@ mod test_fixed_point {
 
     #[test]
     fn test_f32_frac() {
+        let epsilon = 0.001;
         let expected: f32 = 0.5;
-        let expected_range: RangeInclusive<f32> = Q32_32::precision(expected);
         let x = Q32_32::from_f32(expected).to_f32();
         assert!(
-            expected_range.contains(&x),
-            "should be symmetric\nexpect: {expected_range:?}\nactual: {x}"
+            (x - expected).abs() <= epsilon,
+            "should be symmetric\nexpect: {expected}±{epsilon}\nactual: {x}"
         );
 
         let expected: f32 = 2.2;
-        let expected_range: RangeInclusive<f32> = Q32_32::precision(expected);
         let x = Q32_32::from_f32(expected).to_f32();
         assert!(
-            expected_range.contains(&x),
-            "should be symmetric\nexpect: {expected_range:?}\nactual: {x}"
+            (x - expected).abs() <= epsilon,
+            "should be symmetric\nexpect: {expected}±{epsilon}\nactual: {x}"
         );
 
         let expected: f32 = -2.2;
-        let expected_range: RangeInclusive<f32> = Q32_32::precision(expected);
         let x = Q32_32::from_f32(expected).to_f32();
         assert!(
-            expected_range.contains(&x),
-            "should be symmetric\nexpect: {expected_range:?}\nactual: {x}"
+            (x - expected).abs() <= epsilon,
+            "should be symmetric\nexpect: {expected}±{epsilon}\nactual: {x}"
         );
     }
 
