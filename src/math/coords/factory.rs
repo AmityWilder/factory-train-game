@@ -1,3 +1,5 @@
+use crate::math::coords::VectorConstants;
+
 use super::{PlayerVector3, RailVector3};
 use raylib::prelude::Vector3;
 
@@ -9,26 +11,21 @@ pub struct FactoryVector3 {
     pub z: i16,
 }
 
+impl VectorConstants for FactoryVector3 {
+    const ZERO: Self = Self::new(0, 0, 0);
+    const ONE: Self = Self::new(1, 1, 1);
+    const NEG_ONE: Self = Self::new(-1, -1, -1);
+    const X: Self = Self::new(1, 0, 0);
+    const Y: Self = Self::new(0, 1, 0);
+    const Z: Self = Self::new(0, 0, 1);
+    const NEG_X: Self = Self::new(-1, 0, 0);
+    const NEG_Y: Self = Self::new(0, -1, 0);
+    const NEG_Z: Self = Self::new(0, 0, -1);
+    const MIN: Self = Self::new(i16::MIN, i16::MIN, i16::MIN);
+    const MAX: Self = Self::new(i16::MAX, i16::MAX, i16::MAX);
+}
+
 impl FactoryVector3 {
-    pub const ZERO: Self = Self::new(0, 0, 0);
-    pub const ONE: Self = Self::new(1, 1, 1);
-    pub const NEG_ONE: Self = Self::new(-1, -1, -1);
-    pub const X: Self = Self::new(1, 0, 0);
-    pub const Y: Self = Self::new(0, 1, 0);
-    pub const Z: Self = Self::new(0, 0, 1);
-    pub const NEG_X: Self = Self::new(-1, 0, 0);
-    pub const NEG_Y: Self = Self::new(0, -1, 0);
-    pub const NEG_Z: Self = Self::new(0, 0, -1);
-    pub const MIN: Self = Self::new(i16::MIN, i16::MIN, i16::MIN);
-    pub const MAX: Self = Self::new(i16::MAX, i16::MAX, i16::MAX);
-
-    pub const FORWARD: Self = Self::NEG_Z;
-    pub const BACKWARD: Self = Self::Z;
-    pub const RIGHT: Self = Self::X;
-    pub const LEFT: Self = Self::NEG_X;
-    pub const UP: Self = Self::Y;
-    pub const DOWN: Self = Self::NEG_Y;
-
     #[inline]
     pub const fn new(x: i16, y: i16, z: i16) -> Self {
         Self { x, y, z }
@@ -55,6 +52,16 @@ impl FactoryVector3 {
         origin: &RailVector3,
     ) -> Vector3 {
         (self.to_player(origin).minus(*player_pos)).to_vec3()
+    }
+
+    /// Convert to [`Vector3`] without coordinate conversion
+    #[inline]
+    pub const fn as_vec3(self) -> Vector3 {
+        Vector3 {
+            x: self.x as f32,
+            y: self.y as f32,
+            z: self.z as f32,
+        }
     }
 
     #[inline]

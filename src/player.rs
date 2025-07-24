@@ -2,12 +2,13 @@ use crate::{
     Region,
     input::{self, Inputs},
     math::{
-        bounds::Bounds,
+        bounds::{Bounds, SpacialBounds},
         coords::{
             VectorConstants,
             player::{PlayerCoord, PlayerVector3},
         },
     },
+    region::RegionMut,
 };
 use raylib::prelude::{
     glam::{EulerRot, Quat},
@@ -104,10 +105,7 @@ impl Player {
                         .iter()
                         .filter_map(|reactor| {
                             let bounds = reactor.bounds();
-                            (bounds.x().contains(&position_in_factory.x)
-                            && bounds.z().contains(&position_in_factory.z)
-                            // Add some extra height so that the floor doesn't reset to default after moving the player on top
-                            && (bounds.min.y..=bounds.max.y).contains(&position_in_factory.y)
+                            (bounds.contains(&position_in_factory)
                             // Don't teleport up more than a meter
                             && position_in_factory.y.abs_diff(bounds.max.y) <= 1)
                                 .then_some(bounds.max.y)
@@ -177,18 +175,19 @@ impl Player {
         _rl: &mut RaylibHandle,
         _thread: &RaylibThread,
         _inputs: &Inputs,
-        _current_region: &mut Region,
+        _current_region: &mut RegionMut<'_>,
     ) {
         _ = self.pitch.sin();
     }
 
+    pub const fn eye_pos(&self) -> PlayerVector3 {
+        self.position
+            .plus(PlayerVector3::UP.scale(PlayerCoord::from_f32(Self::EYE_HEIGHT)))
+    }
+
     pub fn vision_ray(&self) -> Ray {
         Ray {
-            position: Vector3::new(
-                self.position.x.to_f32(),
-                self.position.y.to_f32() + Self::EYE_HEIGHT,
-                self.position.z.to_f32(),
-            ),
+            position: self.eye_pos().to_vec3(),
             direction: (self.camera.target - self.camera.position).normalize_or(Vector3::FORWARD),
         }
     }

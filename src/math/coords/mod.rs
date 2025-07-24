@@ -1,28 +1,28 @@
 use raylib::prelude::Vector3;
 
 #[const_trait]
-pub trait VectorConstants: Sized + Copy + std::ops::Neg {
-    /// Vector with all components set to 0
+pub trait VectorConstants: Sized {
+    /// &langle;0, 0, 0&rangle;
     const ZERO: Self;
-    /// Vector with all components set to 1
+    /// &langle;1, 1, 1&rangle;
     const ONE: Self;
-    /// Vector with all components set to -1
+    /// &langle;-1, -1, -1&rangle;
     const NEG_ONE: Self;
     /// Vector with all components set to the minimum for their type
     const MIN: Self;
     /// Vector with all components set to the maximum for their type
     const MAX: Self;
-    /// <1, 0, 0>
+    /// &langle;1, 0, 0&rangle;
     const X: Self;
-    /// <0, 1, 0>
+    /// &langle;0, 1, 0&rangle;
     const Y: Self;
-    /// <0, 0, 1>
+    /// &langle;0, 0, 1&rangle;
     const Z: Self;
-    /// <-1, 0, 0>
+    /// &langle;-1, 0, 0&rangle;
     const NEG_X: Self;
-    /// <0, -1, 0>
+    /// &langle;0, -1, 0&rangle;
     const NEG_Y: Self;
-    /// <0, 0, -1>
+    /// &langle;0, 0, -1&rangle;
     const NEG_Z: Self;
 
     /// The forward (length) vector

@@ -1,3 +1,5 @@
+use crate::math::coords::{LabVector3, lab::LabCoord};
+
 use super::{FactoryVector3, TryFromFactoryVectorError, VectorConstants, rail::RailVector3};
 use fixed_point::Q32_32;
 use raylib::prelude::Vector3;
@@ -72,7 +74,7 @@ impl PlayerVector3 {
         }
     }
 
-    /// Convert to renderer vector
+    /// Convert to world vector
     ///
     /// Note: Truncates the submeter position
     #[inline]
@@ -84,13 +86,26 @@ impl PlayerVector3 {
         }
     }
 
-    /// Convert to renderer vector
+    /// Convert to factory vector
     #[inline]
     pub const fn to_factory(
         self,
         origin: &RailVector3,
     ) -> Result<FactoryVector3, TryFromFactoryVectorError> {
         self.to_rail().to_factory(origin)
+    }
+
+    /// Convert to lab vector
+    ///
+    /// Note: May truncate submeter position
+    #[inline]
+    pub const fn to_lab(self, origin: &PlayerVector3) -> LabVector3 {
+        let v = self.minus(*origin);
+        LabVector3 {
+            x: LabCoord::from_f32(v.x.to_f32()),
+            y: LabCoord::from_f32(v.y.to_f32()),
+            z: LabCoord::from_f32(v.z.to_f32()),
+        }
     }
 
     /// Componentwise absolute value

@@ -28,7 +28,7 @@ impl PeriodicTable {
         origin: &PlayerVector3,
     ) {
         d.draw_cube_v(
-            self.position.to_player_relative(*player_pos, *origin) + Vector3::new(1.0, 1.0, 2.0),
+            self.position.to_player_relative(player_pos, origin) + Vector3::new(1.0, 1.0, 2.0),
             Vector3::new(1.0, 1.0, 2.0),
             Color::BLUE,
         );
@@ -69,8 +69,8 @@ impl Laboratory {
 
         let bbox = self.bounds;
         let bbox = BoundingBox {
-            min: bbox.min.to_player_relative(*player_pos, *origin),
-            max: bbox.max.to_player_relative(*player_pos, *origin),
+            min: bbox.min.to_player_relative(player_pos, origin),
+            max: bbox.max.to_player_relative(player_pos, origin),
         };
         d.draw_bounding_box(bbox, Color::BLUEVIOLET);
     }

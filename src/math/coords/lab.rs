@@ -37,16 +37,25 @@ impl LabVector3 {
     }
 
     #[inline]
-    pub fn to_player(self, origin: PlayerVector3) -> PlayerVector3 {
+    pub fn to_player(self, origin: &PlayerVector3) -> PlayerVector3 {
         PlayerVector3 {
             x: PlayerCoord::from(self.x),
             y: PlayerCoord::from(self.y),
             z: PlayerCoord::from(self.z),
-        } + origin
+        } + *origin
     }
 
     #[inline]
-    pub fn to_player_relative(self, player_pos: PlayerVector3, origin: PlayerVector3) -> Vector3 {
-        (self.to_player(origin).minus(player_pos)).to_vec3()
+    pub fn to_player_relative(self, player_pos: &PlayerVector3, origin: &PlayerVector3) -> Vector3 {
+        (self.to_player(origin).minus(*player_pos)).to_vec3()
+    }
+
+    #[inline]
+    pub const fn as_vec3(self) -> Vector3 {
+        Vector3 {
+            x: self.x.to_f32(),
+            y: self.y.to_f32(),
+            z: self.z.to_f32(),
+        }
     }
 }

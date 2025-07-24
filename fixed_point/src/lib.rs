@@ -171,6 +171,16 @@ macro_rules! define_fp {
                 pub const fn sqrt(self) -> Self {
                     Self(self.0.isqrt() * Self::DECIMAL_FACTOR_ISQRT as $Repr)
                 }
+
+                /// Compare `self` with `rhs` with [`Ord`]
+                #[inline]
+                pub const fn compare(self, rhs: Self) -> std::cmp::Ordering {
+                    match self.0 - rhs.0 {
+                        ..0 => std::cmp::Ordering::Less,
+                        0 => std::cmp::Ordering::Equal,
+                        _ => std::cmp::Ordering::Greater,
+                    }
+                }
             }
 
             impl Neg for [<Q $IBITS _ $FBITS>] {

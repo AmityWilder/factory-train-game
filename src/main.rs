@@ -27,6 +27,16 @@
     associated_type_defaults
 )]
 
+mod chem;
+mod input;
+mod math;
+mod ordinals;
+mod player;
+mod region;
+mod resource;
+mod rlights;
+
+use crate::{math::bounds::FactoryBounds, region::RegionId};
 use math::{
     bounds::LabBounds,
     coords::{LabVector3, VectorConstants},
@@ -37,16 +47,6 @@ use region::{
     factory::{Factory, Reactor},
     lab::{Laboratory, PeriodicTable},
 };
-
-mod chem;
-mod input;
-mod math;
-mod ordinals;
-mod player;
-mod region;
-mod resource;
-mod rlights;
-
 use {
     input::Bindings,
     math::coords::{factory::FactoryVector3, player::PlayerVector3, rail::RailVector3},
@@ -87,6 +87,7 @@ fn set_bindings_default(bindings: &mut Bindings) {
     bindings[PrevItem] = MouseWheel.max_magnitude().lt(0.0);
 }
 
+#[allow(clippy::too_many_lines, reason = "don't care")]
 fn main() {
     let (mut rl, thread) = init().title("factory game").resizable().msaa_4x().build();
 
@@ -113,6 +114,10 @@ fn main() {
 
     let mut factories: Vec<Factory> = vec![Factory {
         origin: RailVector3 { x: 0, y: 0, z: 0 },
+        bounds: FactoryBounds {
+            min: FactoryVector3::new(-30, 0, -30),
+            max: FactoryVector3::new(30, 30, 30),
+        },
         reactors: vec![
             Reactor {
                 position: FactoryVector3 { x: 5, y: 0, z: -6 },
@@ -126,38 +131,62 @@ fn main() {
     }];
 
     let mut lab = Laboratory {
-        origin: PlayerVector3::from_i32(5, 0, -15),
+        origin: PlayerVector3::from_i32(5, 0, -30),
         bounds: LabBounds {
-            min: LabVector3::from_i16(-28, 0, -20),
-            max: LabVector3::from_i16(28, 10, 20),
+            min: LabVector3::from_i16(-10, 0, -10),
+            max: LabVector3::from_i16(10, 10, 10),
         },
         periodic_table: Some(PeriodicTable {
             position: LabVector3::from_i16(0, 0, 0),
         }),
     };
 
-    let mut current_region = Region::Factory(&mut factories[0]);
+    let mut current_region = RegionId::Factory(0);
 
     while !rl.window_should_close() {
-        // Change region
-        if rl.is_key_pressed(KeyboardKey::KEY_R) {
-            match current_region {
-                Region::Rail => todo!(),
-                Region::Factory(_) => current_region = Region::Lab(&mut lab),
-                Region::Lab(_) => current_region = Region::Factory(&mut factories[0]),
-            }
-        }
-
         let inputs = bindings.check(&rl);
-        player.do_movement(&mut rl, &thread, &inputs, &current_region);
-        player.do_actions(&mut rl, &thread, &inputs, &mut current_region);
+        player.do_movement(
+            &mut rl,
+            &thread,
+            &inputs,
+            &current_region.to_region(&factories, &lab),
+        );
+
+        current_region = RegionId::containing(&player.eye_pos(), &factories, &lab);
+
+        player.do_actions(
+            &mut rl,
+            &thread,
+            &inputs,
+            &mut current_region.to_mut_region(&mut factories, &mut lab),
+        );
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
         {
             let mut d = d.begin_mode3D(player.camera);
-            current_region.draw(&mut d, &thread, &resources, &player);
+            let player_pos = &player.position;
+            for factory in &factories {
+                let origin = &factory.origin;
+                d.draw_bounding_box(
+                    BoundingBox {
+                        min: factory.bounds.min.to_player_relative(player_pos, origin),
+                        max: factory.bounds.max.to_player_relative(player_pos, origin),
+                    },
+                    Color::GREEN,
+                );
+            }
+            d.draw_bounding_box(
+                BoundingBox {
+                    min: lab.bounds.min.to_player_relative(player_pos, &lab.origin),
+                    max: lab.bounds.max.to_player_relative(player_pos, &lab.origin),
+                },
+                Color::ORANGE,
+            );
+            current_region
+                .to_region(&factories, &lab)
+                .draw(&mut d, &thread, &resources, &player);
         }
 
         d.draw_fps(0, 0);
