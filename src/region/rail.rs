@@ -49,10 +49,10 @@ impl World {
         d: &mut impl RaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
-        _player: &Player,
+        player: &Player,
     ) {
         d.draw_plane(
-            Vector3::ZERO,
+            (-player.position).to_vec3(),
             Vector2::new(1000.0, 1000.0),
             Color::DARKGREEN,
         );

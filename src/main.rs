@@ -112,23 +112,46 @@ fn main() {
 
     let mut player = Player::spawn(&mut rl, &thread, PlayerVector3::ZERO, 0.0, 0.0, 45.0);
 
-    let mut factories: Vec<Factory> = vec![Factory {
-        origin: RailVector3 { x: 0, y: 0, z: 0 },
-        bounds: FactoryBounds {
-            min: FactoryVector3::new(-30, 0, -30),
-            max: FactoryVector3::new(30, 30, 30),
+    let mut factories: Vec<Factory> = vec![
+        Factory {
+            origin: RailVector3 { x: 0, y: 0, z: 0 },
+            bounds: FactoryBounds {
+                min: FactoryVector3::new(-30, 0, -30),
+                max: FactoryVector3::new(30, 30, 30),
+            },
+            reactors: vec![
+                Reactor {
+                    position: FactoryVector3 { x: 5, y: 0, z: -6 },
+                    rotation: Cardinal2D::default(),
+                },
+                Reactor {
+                    position: FactoryVector3 { x: -3, y: 0, z: -9 },
+                    rotation: Cardinal2D::default(),
+                },
+            ],
         },
-        reactors: vec![
-            Reactor {
-                position: FactoryVector3 { x: 5, y: 0, z: -6 },
-                rotation: Cardinal2D::default(),
+        Factory {
+            origin: RailVector3 {
+                x: 300,
+                y: 0,
+                z: 50,
             },
-            Reactor {
-                position: FactoryVector3 { x: -3, y: 0, z: -9 },
-                rotation: Cardinal2D::default(),
+            bounds: FactoryBounds {
+                min: FactoryVector3::new(-30, 0, -30),
+                max: FactoryVector3::new(30, 30, 30),
             },
-        ],
-    }];
+            reactors: vec![
+                Reactor {
+                    position: FactoryVector3 { x: 5, y: 0, z: -6 },
+                    rotation: Cardinal2D::default(),
+                },
+                Reactor {
+                    position: FactoryVector3 { x: -3, y: 0, z: -9 },
+                    rotation: Cardinal2D::default(),
+                },
+            ],
+        },
+    ];
 
     let mut lab = Laboratory {
         origin: PlayerVector3::from_i32(5, 0, -30),
