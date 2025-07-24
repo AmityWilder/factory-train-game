@@ -95,7 +95,7 @@ impl Player {
             const WORLD_FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
 
             let local_floor = match current_region {
-                Region::Rail => None,
+                Region::Rail(_world) => None,
                 Region::Factory(current_factory) => {
                     let position_in_factory =
                         self.position.to_factory(&current_factory.origin).unwrap();

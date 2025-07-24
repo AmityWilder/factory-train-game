@@ -5,11 +5,14 @@ use crate::{
     },
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     player::Player,
+    region::factory::grid_vis::GridVisualizer,
     resource::Resources,
 };
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
 use std::num::NonZeroU8;
+
+pub mod grid_vis;
 
 /// Get collision info between ray and box
 #[inline]
@@ -426,53 +429,6 @@ impl Factory {
         .min_by_key(|collision| PlayerCoord::from_f32(collision.distance))
     }
 
-    fn draw_world_grid(
-        d: &mut impl RaylibDraw3D,
-        _thread: &RaylibThread,
-        _resources: &Resources,
-        player_pos: &PlayerVector3,
-        origin: &RailVector3,
-    ) {
-        const GRID_SIZE: i16 = 100;
-
-        let position_in_factory = player_pos.to_factory(origin).unwrap();
-
-        for x in (-GRID_SIZE)..GRID_SIZE {
-            d.draw_line3D(
-                FactoryVector3 {
-                    x: x + position_in_factory.x,
-                    y: 0,
-                    z: position_in_factory.z - GRID_SIZE,
-                }
-                .to_player_relative(player_pos, origin),
-                FactoryVector3 {
-                    x: x + position_in_factory.x,
-                    y: 0,
-                    z: position_in_factory.z + GRID_SIZE,
-                }
-                .to_player_relative(player_pos, origin),
-                Color::RED,
-            );
-        }
-        for z in (-GRID_SIZE)..GRID_SIZE {
-            d.draw_line3D(
-                FactoryVector3 {
-                    x: position_in_factory.x - GRID_SIZE,
-                    y: 0,
-                    z: position_in_factory.z + z,
-                }
-                .to_player_relative(player_pos, origin),
-                FactoryVector3 {
-                    x: position_in_factory.x + GRID_SIZE,
-                    y: 0,
-                    z: position_in_factory.z + z,
-                }
-                .to_player_relative(player_pos, origin),
-                Color::BLUE,
-            );
-        }
-    }
-
     fn draw_machines(
         &self,
         d: &mut impl RaylibDraw3D,
@@ -563,13 +519,14 @@ impl Factory {
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,
+        grid: &GridVisualizer,
     ) {
         let origin = &self.origin;
         let player_pos = &player.position;
         let player_vision_ray = player.vision_ray();
         let player_lookat = self.get_ray_collision(player_vision_ray);
 
-        Self::draw_world_grid(d, thread, resources, player_pos, origin);
+        grid.draw(d, thread, resources, player_pos, self);
         if let Some(player_lookat) = &player_lookat {
             Self::draw_highlight(d, thread, resources, player_pos, origin, player_lookat);
         }

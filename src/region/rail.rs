@@ -40,7 +40,8 @@ fn draw_skybox(_d: &mut impl RaylibDraw3D, _thread: &RaylibThread, resources: &R
     }
 }
 
-pub struct World;
+#[derive(Debug)]
+pub struct World {}
 
 impl World {
     #[allow(clippy::unused_self, reason = "trait-like")]

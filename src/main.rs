@@ -36,7 +36,10 @@ mod region;
 mod resource;
 mod rlights;
 
-use crate::{math::bounds::FactoryBounds, region::RegionId};
+use crate::{
+    math::bounds::FactoryBounds,
+    region::{RegionId, factory::grid_vis::GridVisualizer, rail::World},
+};
 use math::{
     bounds::LabBounds,
     coords::{LabVector3, VectorConstants},
@@ -164,7 +167,11 @@ fn main() {
         }),
     };
 
-    let mut current_region = RegionId::Factory(0);
+    let mut world = World {};
+
+    let mut factory_grid = None;
+
+    let mut current_region = RegionId::Rail;
 
     while !rl.window_should_close() {
         let inputs = bindings.check(&rl);
@@ -172,16 +179,23 @@ fn main() {
             &mut rl,
             &thread,
             &inputs,
-            &current_region.to_region(&factories, &lab),
+            &current_region.to_region(&factories, &lab, &world),
         );
 
-        current_region = RegionId::containing(&player.eye_pos(), &factories, &lab);
+        let is_region_changed = current_region.update(&player.eye_pos(), &factories, &lab, &world);
+        if is_region_changed {
+            if matches!(current_region, RegionId::Factory(_)) {
+                factory_grid = Some(GridVisualizer::new());
+            } else {
+                factory_grid = None;
+            }
+        }
 
         player.do_actions(
             &mut rl,
             &thread,
             &inputs,
-            &mut current_region.to_mut_region(&mut factories, &mut lab),
+            &mut current_region.to_mut_region(&mut factories, &mut lab, &mut world),
         );
 
         let mut d = rl.begin_drawing(&thread);
@@ -207,9 +221,13 @@ fn main() {
                 },
                 Color::ORANGE,
             );
-            current_region
-                .to_region(&factories, &lab)
-                .draw(&mut d, &thread, &resources, &player);
+            current_region.to_region(&factories, &lab, &world).draw(
+                &mut d,
+                &thread,
+                &resources,
+                &player,
+                factory_grid.as_ref(),
+            );
         }
 
         d.draw_fps(0, 0);

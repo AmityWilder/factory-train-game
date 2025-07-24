@@ -1,7 +1,7 @@
 use crate::{
     math::{bounds::SpacialBounds, coords::PlayerVector3},
     player::Player,
-    region::rail::World,
+    region::{factory::grid_vis::GridVisualizer, rail::World},
     resource::Resources,
 };
 use factory::Factory;
@@ -20,8 +20,16 @@ pub enum RegionId {
     Lab,
 }
 
+// Priority: Lab > Factory > Outside
+
 impl RegionId {
-    pub fn containing(pos: &PlayerVector3, factories: &[Factory], lab: &Laboratory) -> Self {
+    /// Get the ID of the region containing `pos`
+    pub fn containing(
+        pos: &PlayerVector3,
+        factories: &[Factory],
+        lab: &Laboratory,
+        _world: &World,
+    ) -> Self {
         lab.bounds
             .contains(&pos.to_lab(&lab.origin))
             .then_some(RegionId::Lab)
@@ -37,9 +45,38 @@ impl RegionId {
             .unwrap_or_default()
     }
 
-    pub const fn to_region<'a>(self, factories: &'a [Factory], lab: &'a Laboratory) -> Region<'a> {
+    /// Get the ID of the region containing `pos`, returning `true` if the region has changed
+    pub fn update(
+        &mut self,
+        pos: &PlayerVector3,
+        factories: &[Factory],
+        lab: &Laboratory,
+        world: &World,
+    ) -> bool {
+        if match self {
+            RegionId::Rail => false,
+            RegionId::Lab => lab.bounds.contains(&pos.to_lab(&lab.origin)),
+            RegionId::Factory(idx) => pos
+                .to_factory(&factories[*idx].origin)
+                .is_ok_and(|pos| factories[*idx].bounds.contains(&pos)),
+        } {
+            false
+        } else {
+            let new_value = Self::containing(pos, factories, lab, world);
+            let is_changed = self != &new_value;
+            *self = new_value;
+            is_changed
+        }
+    }
+
+    pub const fn to_region<'a>(
+        self,
+        factories: &'a [Factory],
+        lab: &'a Laboratory,
+        world: &'a World,
+    ) -> Region<'a> {
         match self {
-            Self::Rail => Region::Rail,
+            Self::Rail => Region::Rail(world),
             Self::Factory(idx) => Region::Factory(&factories[idx]),
             Self::Lab => Region::Lab(lab),
         }
@@ -49,19 +86,19 @@ impl RegionId {
         self,
         factories: &'a mut [Factory],
         lab: &'a mut Laboratory,
+        world: &'a mut World,
     ) -> RegionMut<'a> {
         match self {
-            Self::Rail => RegionMut::Rail,
+            Self::Rail => RegionMut::Rail(world),
             Self::Factory(idx) => RegionMut::Factory(&mut factories[idx]),
             Self::Lab => RegionMut::Lab(lab),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub enum Region<'a> {
-    #[default]
-    Rail,
+    Rail(&'a World),
     Factory(&'a Factory),
     Lab(&'a Laboratory),
 }
@@ -73,19 +110,25 @@ impl Region<'_> {
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,
+        grid: Option<&GridVisualizer>,
     ) {
         match self {
-            Self::Rail => World.draw(d, thread, resources, player), // TODO
-            Self::Factory(factory) => factory.draw(d, thread, resources, player),
+            Self::Rail(world) => world.draw(d, thread, resources, player),
+            Self::Factory(factory) => factory.draw(
+                d,
+                thread,
+                resources,
+                player,
+                grid.expect("entering factory region should create a grid"),
+            ),
             Self::Lab(lab) => lab.draw(d, thread, resources, player),
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub enum RegionMut<'a> {
-    #[default]
-    Rail,
+    Rail(&'a mut World),
     Factory(&'a mut Factory),
     Lab(&'a mut Laboratory),
 }
@@ -93,7 +136,7 @@ pub enum RegionMut<'a> {
 impl RegionMut<'_> {
     pub const fn as_region(&self) -> Region<'_> {
         match self {
-            RegionMut::Rail => Region::Rail,
+            RegionMut::Rail(world) => Region::Rail(world),
             RegionMut::Factory(factory) => Region::Factory(factory),
             RegionMut::Lab(lab) => Region::Lab(lab),
         }
