@@ -34,11 +34,14 @@ mod ordinals;
 mod player;
 mod region;
 mod resource;
+mod rl_helpers;
 mod rlights;
+
+use std::time::Instant;
 
 use crate::{
     math::bounds::FactoryBounds,
-    region::{RegionId, factory::grid_vis::GridVisualizer, rail::World},
+    region::{RegionId, rail::World},
 };
 use math::{
     bounds::LabBounds,
@@ -46,7 +49,6 @@ use math::{
 };
 use raylib::prelude::*;
 use region::{
-    Region,
     factory::{Factory, Reactor},
     lab::{Laboratory, PeriodTableVariable, PeriodicTable},
 };
@@ -166,15 +168,13 @@ fn main() {
             min: LabVector3::from_i16(-10, 0, -10),
             max: LabVector3::from_i16(10, 10, 10),
         },
-        periodic_table: Some(PeriodicTable {
+        periodic_tables: vec![PeriodicTable {
             position: LabVector3::from_i16(0, 0, 0),
             variable: PeriodTableVariable::Protons,
-        }),
+        }],
     };
 
     let mut world = World {};
-
-    let mut factory_grid = None;
 
     let mut current_region = RegionId::Rail;
 
@@ -184,23 +184,19 @@ fn main() {
             &mut rl,
             &thread,
             &inputs,
-            &current_region.to_region(&factories, &lab, &world),
+            current_region.to_region(&factories, &lab, &world),
         );
 
         let is_region_changed = current_region.update(&player.eye_pos(), &factories, &lab, &world);
         if is_region_changed {
-            if matches!(current_region, RegionId::Factory(_)) {
-                factory_grid = Some(GridVisualizer::new());
-            } else {
-                factory_grid = None;
-            }
+            player.region_last_changed = Instant::now();
         }
 
         player.do_actions(
             &mut rl,
             &thread,
             &inputs,
-            &mut current_region.to_mut_region(&mut factories, &mut lab, &mut world),
+            current_region.to_mut_region(&mut factories, &mut lab, &mut world),
         );
 
         let mut d = rl.begin_drawing(&thread);
@@ -226,13 +222,9 @@ fn main() {
                 },
                 Color::ORANGE,
             );
-            current_region.to_region(&factories, &lab, &world).draw(
-                &mut d,
-                &thread,
-                &resources,
-                &player,
-                factory_grid.as_ref(),
-            );
+            current_region
+                .to_region(&factories, &lab, &world)
+                .draw(&mut d, &thread, &resources, &player);
         }
 
         d.draw_fps(0, 0);

@@ -3,12 +3,15 @@ use raylib::prelude::*;
 use crate::{
     chem::Element,
     math::{
-        bounds::{Bounds, LabBounds},
-        coords::{LabVector3, PlayerVector3},
+        bounds::{Bounds, LabBounds, SpacialBounds},
+        coords::{LabVector3, PlayerCoord, PlayerVector3},
     },
     player::Player,
     resource::Resources,
+    rl_helpers::DynRaylibDraw3D,
 };
+
+use super::{PlayerOverlap, Region};
 
 // Lab is not grid aligned, and small enough that I don't care about floating point error
 
@@ -31,14 +34,14 @@ pub struct PeriodicTable {
 impl PeriodicTable {
     pub fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         resources: &Resources,
-        player_pos: &PlayerVector3,
+        player: &Player,
         origin: &PlayerVector3,
     ) {
         let mesh = &resources.periodic_table_mesh;
-        let Vector3 { x, y, z } = self.position.to_player_relative(player_pos, origin);
+        let Vector3 { x, y, z } = self.position.to_player_relative(&player.position, origin);
         let translation = Matrix::translate(x, y, z);
         for (element, (matrix, material)) in Element::list()
             .iter()
@@ -54,8 +57,8 @@ impl PeriodicTable {
             // SAFETY: TBD
             let material = unsafe { WeakMaterial::from_raw(**material) };
             d.draw_mesh(
-                mesh,
-                material,
+                **mesh,
+                *material,
                 Matrix::scale(1.0, y_scale, 1.0)
                     * Matrix::translate(0.0, y_scale * 0.125, 0.0)
                     * translation
@@ -79,28 +82,35 @@ impl LabEquipment for PeriodicTable {}
 pub struct Laboratory {
     pub origin: PlayerVector3,
     pub bounds: LabBounds,
-    pub periodic_table: Option<PeriodicTable>,
+    pub periodic_tables: Vec<PeriodicTable>,
 }
 
-impl Laboratory {
-    pub fn draw(
+impl PlayerOverlap for Laboratory {
+    fn is_overlapping(&self, player: &Player) -> bool {
+        self.bounds.contains(&player.eye_pos().to_lab(&self.origin))
+    }
+
+    fn local_floor(&self, _player: &Player) -> Option<PlayerCoord> {
+        None // TODO
+    }
+}
+
+impl Region for Laboratory {
+    fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,
     ) {
-        let origin = &self.origin;
-        let player_pos = &player.position;
-
-        if let Some(periodic_table) = &self.periodic_table {
-            periodic_table.draw(d, thread, resources, player_pos, origin);
+        for periodic_table in &self.periodic_tables {
+            periodic_table.draw(d, thread, resources, player, &self.origin);
         }
 
         let bbox = self.bounds;
         let bbox = BoundingBox {
-            min: bbox.min.to_player_relative(player_pos, origin),
-            max: bbox.max.to_player_relative(player_pos, origin),
+            min: bbox.min.to_player_relative(&player.position, &self.origin),
+            max: bbox.max.to_player_relative(&player.position, &self.origin),
         };
         d.draw_bounding_box(bbox, Color::BLUEVIOLET);
     }

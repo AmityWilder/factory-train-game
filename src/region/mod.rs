@@ -1,8 +1,12 @@
 use crate::{
-    math::{bounds::SpacialBounds, coords::PlayerVector3},
+    math::{
+        bounds::SpacialBounds,
+        coords::{PlayerCoord, PlayerVector3},
+    },
     player::Player,
-    region::{factory::grid_vis::GridVisualizer, rail::World},
+    region::rail::World,
     resource::Resources,
+    rl_helpers::DynRaylibDraw3D,
 };
 use factory::Factory;
 use lab::Laboratory;
@@ -11,6 +15,24 @@ use raylib::prelude::*;
 pub mod factory;
 pub mod lab;
 pub mod rail;
+
+pub trait PlayerOverlap {
+    #[must_use]
+    fn is_overlapping(&self, player: &Player) -> bool;
+
+    #[must_use]
+    fn local_floor(&self, player: &Player) -> Option<PlayerCoord>;
+}
+
+pub trait Region: PlayerOverlap {
+    fn draw(
+        &self,
+        d: &mut dyn DynRaylibDraw3D,
+        thread: &RaylibThread,
+        resources: &Resources,
+        player: &Player,
+    );
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum RegionId {
@@ -64,11 +86,11 @@ impl RegionId {
         factories: &'a [Factory],
         lab: &'a Laboratory,
         world: &'a World,
-    ) -> Region<'a> {
+    ) -> &'a (dyn Region + 'a) {
         match self {
-            Self::Rail => Region::Rail(world),
-            Self::Factory(idx) => Region::Factory(&factories[idx]),
-            Self::Lab => Region::Lab(lab),
+            Self::Rail => world,
+            Self::Factory(idx) => &factories[idx],
+            Self::Lab => lab,
         }
     }
 
@@ -77,58 +99,11 @@ impl RegionId {
         factories: &'a mut [Factory],
         lab: &'a mut Laboratory,
         world: &'a mut World,
-    ) -> RegionMut<'a> {
+    ) -> &'a mut (dyn Region + 'a) {
         match self {
-            Self::Rail => RegionMut::Rail(world),
-            Self::Factory(idx) => RegionMut::Factory(&mut factories[idx]),
-            Self::Lab => RegionMut::Lab(lab),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Region<'a> {
-    Rail(&'a World),
-    Factory(&'a Factory),
-    Lab(&'a Laboratory),
-}
-
-impl Region<'_> {
-    pub fn draw(
-        &self,
-        d: &mut impl RaylibDraw3D,
-        thread: &RaylibThread,
-        resources: &Resources,
-        player: &Player,
-        grid: Option<&GridVisualizer>,
-    ) {
-        match self {
-            Self::Rail(world) => world.draw(d, thread, resources, player),
-            Self::Factory(factory) => factory.draw(
-                d,
-                thread,
-                resources,
-                player,
-                grid.expect("entering factory region should create a grid"),
-            ),
-            Self::Lab(lab) => lab.draw(d, thread, resources, player),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum RegionMut<'a> {
-    Rail(&'a mut World),
-    Factory(&'a mut Factory),
-    Lab(&'a mut Laboratory),
-}
-
-impl RegionMut<'_> {
-    pub const fn as_region(&self) -> Region<'_> {
-        match self {
-            RegionMut::Rail(world) => Region::Rail(world),
-            RegionMut::Factory(factory) => Region::Factory(factory),
-            RegionMut::Lab(lab) => Region::Lab(lab),
+            Self::Rail => world,
+            Self::Factory(idx) => &mut factories[idx],
+            Self::Lab => lab,
         }
     }
 }

@@ -1,20 +1,16 @@
 use crate::{
-    Region,
     input::{self, Inputs},
-    math::{
-        bounds::{Bounds, SpacialBounds},
-        coords::{
-            VectorConstants,
-            player::{PlayerCoord, PlayerVector3},
-        },
+    math::coords::{
+        VectorConstants,
+        player::{PlayerCoord, PlayerVector3},
     },
-    region::RegionMut,
+    region::Region,
 };
 use raylib::prelude::{
     glam::{EulerRot, Quat},
     *,
 };
-use std::f32::consts::PI;
+use std::{f32::consts::PI, time::Instant};
 
 /// Meters per second per second
 const GRAVITY: PlayerCoord = PlayerCoord::from_f32(9.807);
@@ -31,6 +27,7 @@ pub struct Player {
     pub yaw: f32,
     pub is_running: bool,
     pub camera: Camera3D,
+    pub region_last_changed: Instant,
 }
 
 #[inline]
@@ -64,6 +61,7 @@ impl Player {
             pitch,
             is_running: false,
             camera: Camera3D::perspective(camera_offset, camera_target, Vector3::UP, fovy),
+            region_last_changed: Instant::now(),
         }
     }
 
@@ -73,7 +71,7 @@ impl Player {
         rl: &mut RaylibHandle,
         _thread: &RaylibThread,
         inputs: &Inputs,
-        current_region: &Region<'_>,
+        current_region: &dyn Region,
     ) {
         #[allow(unused_imports, clippy::enum_glob_use, reason = "no reason")]
         use input::{AxisInput::*, EventInput::*, VectorInput::*};
@@ -94,29 +92,9 @@ impl Player {
         {
             const WORLD_FLOOR_HEIGHT: PlayerCoord = PlayerCoord::from_i32(0);
 
-            let local_floor = match current_region {
-                Region::Rail(_world) => None,
-                Region::Factory(current_factory) => {
-                    let position_in_factory =
-                        self.position.to_factory(&current_factory.origin).unwrap();
-
-                    current_factory
-                        .reactors
-                        .iter()
-                        .filter_map(|reactor| {
-                            let bounds = reactor.bounds();
-                            (bounds.contains(&position_in_factory)
-                            // Don't teleport up more than a meter
-                            && position_in_factory.y.abs_diff(bounds.max.y) <= 1)
-                                .then_some(bounds.max.y)
-                        })
-                        .max()
-                }
-                Region::Lab(_current_lab) => {
-                    None // todo
-                }
-            }
-            .map_or(WORLD_FLOOR_HEIGHT, |y| PlayerCoord::from_i32(y.into()));
+            let local_floor = current_region
+                .local_floor(self)
+                .unwrap_or(WORLD_FLOOR_HEIGHT);
 
             let is_on_floor = self.position.y <= local_floor;
             if is_on_floor {
@@ -175,7 +153,7 @@ impl Player {
         _rl: &mut RaylibHandle,
         _thread: &RaylibThread,
         _inputs: &Inputs,
-        _current_region: &mut RegionMut<'_>,
+        _current_region: &mut dyn Region,
     ) {
         _ = self.pitch.sin();
     }

@@ -1,16 +1,19 @@
 use crate::{
     math::{
-        bounds::{Bounds, FactoryBounds},
+        bounds::{Bounds, FactoryBounds, SpacialBounds},
         coords::{FactoryVector3, PlayerCoord, PlayerVector3, RailVector3, VectorConstants},
     },
     ordinals::{Cardinal2D, Ordinal2D, Ordinal3D},
     player::Player,
     region::factory::grid_vis::GridVisualizer,
     resource::Resources,
+    rl_helpers::DynRaylibDraw3D,
 };
 use arrayvec::ArrayVec;
 use raylib::prelude::*;
 use std::num::NonZeroU8;
+
+use super::{PlayerOverlap, Region};
 
 pub mod grid_vis;
 
@@ -63,7 +66,7 @@ pub struct BeltInputNode(pub BeltNode);
 impl BeltInputNode {
     pub fn draw(
         self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -82,7 +85,7 @@ pub struct BeltOutputNode(pub BeltNode);
 impl BeltOutputNode {
     pub fn draw(
         self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -104,7 +107,7 @@ pub struct PipeNode {
 impl PipeNode {
     pub fn draw(
         self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -207,7 +210,7 @@ pub trait DrawMachine: Machine {
     // TODO: batch draws of same machine type
     fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -326,7 +329,7 @@ impl Machine for Reactor {
 impl DrawMachine for Reactor {
     fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -431,7 +434,7 @@ impl Factory {
 
     fn draw_machines(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player_pos: &PlayerVector3,
@@ -442,8 +445,8 @@ impl Factory {
             let matrix = machine_matrix(player_pos, reactor.position, origin, reactor.rotation)
                 * reactor_model_transform;
             d.draw_mesh(
-                &resources.reactor.meshes()[0],
-                resources.reactor.materials()[0].clone(),
+                *resources.reactor.meshes()[0],
+                *resources.reactor.materials()[0],
                 matrix,
             );
             let bounds = reactor.bounds();
@@ -476,7 +479,7 @@ impl Factory {
     }
 
     fn draw_highlight(
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         _resources: &Resources,
         player_pos: &PlayerVector3,
@@ -512,21 +515,50 @@ impl Factory {
             d.draw_cube_wires_v(point, Vector3::new(1.0, 1.0, 1.0), Color::WHITE);
         }
     }
+}
 
-    pub fn draw(
+impl PlayerOverlap for Factory {
+    fn is_overlapping(&self, player: &Player) -> bool {
+        player
+            .eye_pos()
+            .to_factory(&self.origin)
+            .is_ok_and(|pos| self.bounds.contains(&pos))
+    }
+
+    fn local_floor(&self, player: &Player) -> Option<PlayerCoord> {
+        let position_in_factory = player.position.to_factory(&self.origin).unwrap();
+
+        self.reactors
+            .iter()
+            .filter_map(|reactor| {
+                let bounds = reactor.bounds();
+                (bounds.contains(&position_in_factory)
+                            // Don't teleport up more than a meter
+                            && position_in_factory.y.abs_diff(bounds.max.y) <= 1)
+                    .then_some(bounds.max.y)
+            })
+            .max()
+            .map(|y| FactoryVector3::new(0, y, 0).to_player(&self.origin).y)
+    }
+}
+
+impl Region for Factory {
+    fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,
-        grid: &GridVisualizer,
     ) {
         let origin = &self.origin;
         let player_pos = &player.position;
         let player_vision_ray = player.vision_ray();
         let player_lookat = self.get_ray_collision(player_vision_ray);
 
-        grid.draw(d, thread, resources, player_pos, self);
+        GridVisualizer {
+            start_time: player.region_last_changed,
+        }
+        .draw(d, thread, resources, player_pos, self);
         if let Some(player_lookat) = &player_lookat {
             Self::draw_highlight(d, thread, resources, player_pos, origin, player_lookat);
         }

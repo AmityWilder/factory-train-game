@@ -1,7 +1,11 @@
-use crate::{player::Player, resource::Resources};
+use crate::{
+    math::coords::PlayerCoord, player::Player, resource::Resources, rl_helpers::DynRaylibDraw3D,
+};
 use raylib::prelude::*;
 
-fn draw_skybox(_d: &mut impl RaylibDraw3D, _thread: &RaylibThread, resources: &Resources) {
+use super::{PlayerOverlap, Region};
+
+fn draw_skybox(_d: &mut dyn DynRaylibDraw3D, _thread: &RaylibThread, resources: &Resources) {
     #[allow(
         clippy::cast_possible_wrap,
         reason = "RL_QUADS is an i32 in Raylib, but bindgen made it a u32"
@@ -43,11 +47,20 @@ fn draw_skybox(_d: &mut impl RaylibDraw3D, _thread: &RaylibThread, resources: &R
 #[derive(Debug)]
 pub struct World {}
 
-impl World {
-    #[allow(clippy::unused_self, reason = "trait-like")]
-    pub fn draw(
+impl PlayerOverlap for World {
+    fn is_overlapping(&self, _player: &Player) -> bool {
+        true
+    }
+
+    fn local_floor(&self, _player: &Player) -> Option<PlayerCoord> {
+        None // TODO
+    }
+}
+
+impl Region for World {
+    fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,

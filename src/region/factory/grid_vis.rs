@@ -2,6 +2,7 @@ use crate::{
     math::coords::{FactoryVector3, PlayerVector3},
     region::factory::Factory,
     resource::Resources,
+    rl_helpers::DynRaylibDraw3D,
 };
 use raylib::prelude::*;
 use std::time::{Duration, Instant};
@@ -14,15 +15,9 @@ pub struct GridVisualizer {
 impl GridVisualizer {
     const ANIMATION_TIME: Duration = Duration::from_millis(500);
 
-    pub fn new() -> Self {
-        Self {
-            start_time: Instant::now(),
-        }
-    }
-
     pub fn draw(
         &self,
-        d: &mut impl RaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         _resources: &Resources,
         player_pos: &PlayerVector3,
