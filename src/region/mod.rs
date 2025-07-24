@@ -53,20 +53,10 @@ impl RegionId {
         lab: &Laboratory,
         world: &World,
     ) -> bool {
-        if match self {
-            RegionId::Rail => false,
-            RegionId::Lab => lab.bounds.contains(&pos.to_lab(&lab.origin)),
-            RegionId::Factory(idx) => pos
-                .to_factory(&factories[*idx].origin)
-                .is_ok_and(|pos| factories[*idx].bounds.contains(&pos)),
-        } {
-            false
-        } else {
-            let new_value = Self::containing(pos, factories, lab, world);
-            let is_changed = self != &new_value;
-            *self = new_value;
-            is_changed
-        }
+        let new_value = Self::containing(pos, factories, lab, world);
+        let is_changed = self != &new_value;
+        *self = new_value;
+        is_changed
     }
 
     pub const fn to_region<'a>(

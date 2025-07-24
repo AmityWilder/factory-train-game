@@ -48,7 +48,7 @@ use raylib::prelude::*;
 use region::{
     Region,
     factory::{Factory, Reactor},
-    lab::{Laboratory, PeriodicTable},
+    lab::{Laboratory, PeriodTableVariable, PeriodicTable},
 };
 use {
     input::Bindings,
@@ -92,7 +92,11 @@ fn set_bindings_default(bindings: &mut Bindings) {
 
 #[allow(clippy::too_many_lines, reason = "don't care")]
 fn main() {
-    let (mut rl, thread) = init().title("factory game").resizable().msaa_4x().build();
+    let (mut rl, thread) = init()
+        .title("chemical factory game")
+        .resizable()
+        .msaa_4x()
+        .build();
 
     rl.set_target_fps(60);
     rl.maximize_window();
@@ -164,6 +168,7 @@ fn main() {
         },
         periodic_table: Some(PeriodicTable {
             position: LabVector3::from_i16(0, 0, 0),
+            variable: PeriodTableVariable::Protons,
         }),
     };
 

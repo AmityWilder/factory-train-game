@@ -26,13 +26,14 @@
 // Defines and Macros
 //----------------------------------------------------------------------------------
 /// Max dynamic lights supported by shader
-pub const MAX_LIGHTS: usize = 4;
+pub const MAX_LIGHTS: usize = 32;
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
 
 /// Light data
+#[derive(Debug, Clone)]
 pub struct Light {
     pub ty: LightType,
     pub enabled: bool,

@@ -1,6 +1,7 @@
 use raylib::prelude::*;
 
 use crate::{
+    chem::Element,
     math::{
         bounds::{Bounds, LabBounds},
         coords::{LabVector3, PlayerVector3},
@@ -13,9 +14,18 @@ use crate::{
 
 pub trait LabEquipment: Bounds<Vector3, BoundingBox = BoundingBox> + std::fmt::Debug {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PeriodTableVariable {
+    NoVariable,
+    Protons,
+    Mass,
+    ElectroNegativity,
+}
+
 #[derive(Debug)]
 pub struct PeriodicTable {
     pub position: LabVector3,
+    pub variable: PeriodTableVariable,
 }
 
 impl PeriodicTable {
@@ -23,15 +33,35 @@ impl PeriodicTable {
         &self,
         d: &mut impl RaylibDraw3D,
         _thread: &RaylibThread,
-        _resources: &Resources,
+        resources: &Resources,
         player_pos: &PlayerVector3,
         origin: &PlayerVector3,
     ) {
-        d.draw_cube_v(
-            self.position.to_player_relative(player_pos, origin) + Vector3::new(1.0, 1.0, 2.0),
-            Vector3::new(1.0, 1.0, 2.0),
-            Color::BLUE,
-        );
+        let mesh = &resources.periodic_table_mesh;
+        let Vector3 { x, y, z } = self.position.to_player_relative(player_pos, origin);
+        let translation = Matrix::translate(x, y, z);
+        for (element, (matrix, material)) in Element::list()
+            .iter()
+            .zip(resources.periodic_table_mats.iter())
+        {
+            let protons = element.protons().get();
+            let y_scale = match self.variable {
+                PeriodTableVariable::NoVariable => 1.0,
+                PeriodTableVariable::Protons => f32::from(protons) / 50.0,
+                PeriodTableVariable::Mass => todo!(),
+                PeriodTableVariable::ElectroNegativity => todo!(),
+            };
+            // SAFETY: TBD
+            let material = unsafe { WeakMaterial::from_raw(**material) };
+            d.draw_mesh(
+                mesh,
+                material,
+                Matrix::scale(1.0, y_scale, 1.0)
+                    * Matrix::translate(0.0, y_scale * 0.125, 0.0)
+                    * translation
+                    * *matrix,
+            );
+        }
     }
 }
 
