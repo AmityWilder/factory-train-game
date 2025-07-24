@@ -17,7 +17,7 @@ impl GridVisualizer {
 
     pub fn draw(
         &self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         _resources: &Resources,
         player_pos: &PlayerVector3,

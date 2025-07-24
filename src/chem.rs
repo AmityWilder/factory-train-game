@@ -341,7 +341,7 @@ pub enum Orbital {
 impl Orbital {
     pub fn draw(
         self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         resources: &Resources,
         matrix: Matrix,
@@ -355,8 +355,8 @@ impl Orbital {
             Self::F => &resources.orbital_f,
         };
         d.draw_mesh(
-            *model.meshes()[0],
-            *model.materials()[0],
+            &model.meshes()[0],
+            model.materials()[0].clone(),
             Matrix::scale(scale, scale, scale) * matrix * (*model.transform()),
         );
     }

@@ -27,7 +27,7 @@ pub trait PlayerOverlap {
 pub trait Region: PlayerOverlap {
     fn draw(
         &self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,

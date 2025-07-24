@@ -45,9 +45,9 @@ checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "cc"
-version = "1.2.29"
+version = "1.2.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
+checksum = "deec109607ca693028562ed836a5f1c4b8bd77755c4e132fc5ce11b0b6211ae7"
 dependencies = [
  "jobserver",
  "libc",
@@ -215,9 +215,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "prettyplease"
-version = "0.2.35"
+version = "0.2.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "061c1221631e079b26479d25bbf2275bfe5917ae8419cd7e34f13bfc2aa7539a"
+checksum = "ff24dfcda44452b9816fff4cd4227e1bb73ff5a2f1bc1105aa92fb8565ce44d2"
 dependencies = [
  "proc-macro2",
  "syn",
@@ -250,7 +250,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 [[package]]
 name = "raylib"
 version = "5.7.0"
-source = "git+https://github.com/raylib-rs/raylib-rs.git?branch=unstable#9666ff435b0aa6929ccacc3c8905857c70b6f817"
+source = "git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn#8324826dddabad0c88c2efdf765955675cebcfd0"
 dependencies = [
  "glam",
  "paste",
@@ -262,7 +262,7 @@ dependencies = [
 [[package]]
 name = "raylib-sys"
 version = "5.7.0"
-source = "git+https://github.com/raylib-rs/raylib-rs.git?branch=unstable#9666ff435b0aa6929ccacc3c8905857c70b6f817"
+source = "git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn#8324826dddabad0c88c2efdf765955675cebcfd0"
 dependencies = [
  "bindgen",
  "cc",

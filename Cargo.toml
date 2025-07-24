@@ -7,6 +7,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-raylib = { git = "https://github.com/raylib-rs/raylib-rs.git", branch = "unstable", version = "5.7.0" }
+raylib = { git = "https://github.com/lolbinarycat/raylib-rs", branch = "raylib-draw-dyn" }
 fixed_point = { path = "fixed_point" }
 arrayvec = "0.7.6"

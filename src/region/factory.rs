@@ -66,7 +66,7 @@ pub struct BeltInputNode(pub BeltNode);
 impl BeltInputNode {
     pub fn draw(
         self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -85,7 +85,7 @@ pub struct BeltOutputNode(pub BeltNode);
 impl BeltOutputNode {
     pub fn draw(
         self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -107,7 +107,7 @@ pub struct PipeNode {
 impl PipeNode {
     pub fn draw(
         self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -210,7 +210,7 @@ pub trait DrawMachine: Machine {
     // TODO: batch draws of same machine type
     fn draw(
         &self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -329,7 +329,7 @@ impl Machine for Reactor {
 impl DrawMachine for Reactor {
     fn draw(
         &self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         player_pos: &PlayerVector3,
         factory_origin: &RailVector3,
@@ -434,7 +434,7 @@ impl Factory {
 
     fn draw_machines(
         &self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player_pos: &PlayerVector3,
@@ -445,8 +445,8 @@ impl Factory {
             let matrix = machine_matrix(player_pos, reactor.position, origin, reactor.rotation)
                 * reactor_model_transform;
             d.draw_mesh(
-                *resources.reactor.meshes()[0],
-                *resources.reactor.materials()[0],
+                &resources.reactor.meshes()[0],
+                resources.reactor.materials()[0].clone(),
                 matrix,
             );
             let bounds = reactor.bounds();
@@ -479,7 +479,7 @@ impl Factory {
     }
 
     fn draw_highlight(
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         _thread: &RaylibThread,
         _resources: &Resources,
         player_pos: &PlayerVector3,
@@ -545,7 +545,7 @@ impl PlayerOverlap for Factory {
 impl Region for Factory {
     fn draw(
         &self,
-        d: &mut dyn DynRaylibDraw3D,
+        d: &mut DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,
