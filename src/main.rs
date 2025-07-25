@@ -223,7 +223,7 @@ fn main() {
                 Color::ORANGE,
             );
             current_region.to_region(&factories, &lab, &world).draw(
-                &mut DynRaylibDraw3D::new(&mut d),
+                &mut d,
                 &thread,
                 &resources,
                 &player,

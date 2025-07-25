@@ -1,4 +1,6 @@
-pub use raylib::prelude::DynRaylibDraw3D;
+use raylib::prelude::{RaylibDrawHandle, RaylibMode3D};
+
+pub type DynRaylibDraw3D<'m, 'h> = RaylibMode3D<'m, RaylibDrawHandle<'h>>;
 
 // use raylib::prelude::*;
 
