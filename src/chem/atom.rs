@@ -1,7 +1,6 @@
-use crate::chem::fmt::{SubSupScript, Superscript};
-
 use super::element::Element;
 use super::units::{ELECTRON_MASS, NEUTRON_MASS, PROTON_MASS};
+use crate::chem::fmt::Superscript;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Atom {
