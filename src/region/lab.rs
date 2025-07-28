@@ -1,7 +1,7 @@
 use raylib::prelude::*;
 
 use crate::{
-    chem::Element,
+    chem::element::Element,
     math::{
         bounds::{Bounds, LabBounds, SpacialBounds},
         coords::{LabVector3, PlayerCoord, PlayerVector3},
