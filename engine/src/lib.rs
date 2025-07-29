@@ -1,5 +1,6 @@
 //! Custom game engine using Raylib.
 
+#![feature(min_specialization, specialization)]
 #![warn(
     clippy::pedantic,
     clippy::all,
@@ -17,3 +18,7 @@
 
 pub mod draw;
 pub use draw::{draw2d, draw3d};
+
+pub mod prelude {
+    pub use crate::{render, render_args};
+}

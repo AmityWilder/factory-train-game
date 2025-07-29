@@ -1,21 +1,98 @@
 //! Utilities for rendering in 2D.
 
 use raylib::prelude::*;
-use std::marker::PhantomData;
-use std::{iter, result};
+use std::{marker::PhantomData, num::NonZeroU32};
 
 // mod builders;
 mod rt;
 
-pub type Result = result::Result<(), Error>;
+pub type Result = std::result::Result<(), Error>;
 
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Error;
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Vertex {
+    pub position: Vector2,
+    pub color: Option<Color>,
+}
+
+impl Vertex {
+    #[inline]
+    #[must_use]
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self::new_v(Vector2::new(x, y))
+    }
+
+    #[must_use]
+    pub const fn new_v(position: Vector2) -> Self {
+        Self {
+            position,
+            color: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_color(self, color: Color) -> Self {
+        Self {
+            position: self.position,
+            color: Some(color),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct TexVertex {
+    pub position: Vector2,
+    pub texcoords: Vector2,
+    pub color: Option<Color>,
+}
+
+impl TexVertex {
+    #[inline]
+    #[must_use]
+    pub const fn new_xy(x: f32, y: f32) -> Self {
+        Self::new(Vector2::new(x, y))
+    }
+
+    #[must_use]
+    pub const fn new(position: Vector2) -> Self {
+        Self {
+            position,
+            texcoords: Vector2::new(0.0, 0.0),
+            color: None,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn with_texcoords_uv(self, u: f32, v: f32) -> Self {
+        self.with_texcoords(Vector2::new(u, v))
+    }
+
+    #[must_use]
+    pub const fn with_texcoords(self, texcoords: Vector2) -> Self {
+        Self {
+            position: self.position,
+            texcoords,
+            color: self.color,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_color(self, color: Color) -> Self {
+        Self {
+            position: self.position,
+            texcoords: self.texcoords,
+            color: Some(color),
+        }
+    }
+}
+
 pub trait Render {
-    fn render_lines(&mut self, s: &str) -> Result;
-    fn render_triangles(&mut self, s: &str) -> Result;
-    fn render_quads(&mut self, s: &str) -> Result;
+    fn render_lines(&mut self, points: &[Vertex]) -> Result;
+    fn render_triangles(&mut self, points: &[Vertex]) -> Result;
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result;
 
     /// Glue for usage of the [`write!`] macro with implementors of this trait.
     ///
@@ -24,49 +101,128 @@ pub trait Render {
     fn render(&mut self, args: Arguments<'_>) -> Result {
         // We use a specialization for `Sized` types to avoid an indirection
         // through `&mut self`
-        trait SpecWriteFmt {
-            fn spec_render_fmt(self, args: Arguments<'_>) -> Result;
+        trait SpecRender {
+            fn spec_render(self, args: Arguments<'_>) -> Result;
         }
 
-        impl<R: Render + ?Sized> SpecRenderFmt for &mut R {
+        impl<R: Render + ?Sized> SpecRender for &mut R {
             #[inline]
-            default fn spec_render_fmt(mut self, args: Arguments<'_>) -> Result {
+            default fn spec_render(mut self, args: Arguments<'_>) -> Result {
                 render(&mut self, args)
             }
         }
 
-        impl<R: Render> SpecRenderFmt for &mut R {
+        impl<R: Render> SpecRender for &mut R {
             #[inline]
-            fn spec_render_fmt(self, args: Arguments<'_>) -> Result {
+            fn spec_render(self, args: Arguments<'_>) -> Result {
                 render(self, args)
             }
         }
 
-        self.spec_render_fmt(args)
+        self.spec_render(args)
     }
 }
 
-impl<R: Render + ?Sized> Render for &mut R {
-    fn render_lines(&mut self, s: &str) -> Result {
-        (**self).render_lines(s)
+#[allow(clippy::multiple_unsafe_ops_per_block)]
+impl<D: ?Sized + RaylibDraw> Render for D {
+    fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        // SAFETY: guaranteed by RaylibDraw
+        unsafe {
+            #[allow(clippy::cast_possible_wrap)]
+            ffi::rlBegin(ffi::RL_LINES as i32);
+            ffi::rlNormal3f(0.0, 0.0, 1.0);
+            for point in points {
+                let &Vertex {
+                    position: Vector2 { x, y },
+                    color,
+                } = point;
+                if let Some(Color { r, g, b, a }) = color {
+                    ffi::rlColor4ub(r, g, b, a);
+                }
+                ffi::rlVertex2f(x, y);
+            }
+            ffi::rlEnd();
+        }
+        Ok(())
     }
 
-    fn render_triangles(&mut self, c: char) -> Result {
-        (**self).render_triangles(c)
+    fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        // SAFETY: guaranteed by RaylibDraw
+        unsafe {
+            #[allow(clippy::cast_possible_wrap)]
+            ffi::rlBegin(ffi::RL_TRIANGLES as i32);
+            ffi::rlNormal3f(0.0, 0.0, 1.0);
+            for point in points {
+                let &Vertex {
+                    position: Vector2 { x, y },
+                    color,
+                } = point;
+                if let Some(Color { r, g, b, a }) = color {
+                    ffi::rlColor4ub(r, g, b, a);
+                }
+                ffi::rlVertex2f(x, y);
+            }
+            ffi::rlEnd();
+        }
+        Ok(())
     }
 
-    fn render_quads(&mut self, args: Arguments<'_>) -> Result {
-        (**self).render_quads(args)
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        // SAFETY: guaranteed by RaylibDraw
+        unsafe {
+            ffi::rlSetTexture(
+                texture_id.map_or_else(|| ffi::GetShapesTexture().id, NonZeroU32::get),
+            );
+            #[allow(clippy::cast_possible_wrap)]
+            ffi::rlBegin(ffi::RL_TRIANGLES as i32);
+            ffi::rlNormal3f(0.0, 0.0, 1.0);
+            for point in points {
+                let &TexVertex {
+                    position: Vector2 { x, y },
+                    texcoords: Vector2 { x: u, y: v },
+                    color,
+                } = point;
+                if let Some(Color { r, g, b, a }) = color {
+                    ffi::rlColor4ub(r, g, b, a);
+                }
+                ffi::rlTexCoord2f(u, v);
+                ffi::rlVertex2f(x, y);
+            }
+            ffi::rlEnd();
+            ffi::rlSetTexture(0);
+        }
+        Ok(())
+    }
+}
+
+impl<R: ?Sized + Render> Render for &mut R {
+    fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        (**self).render_lines(points)
     }
 
-    fn render(&mut self, args: Arguments<'_>) -> Result {}
+    fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        (**self).render_triangles(points)
+    }
+
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        (**self).render_quads(texture_id, points)
+    }
+
+    fn render(&mut self, args: Arguments<'_>) -> Result {
+        (**self).render(args)
+    }
 }
 
 /// Options for formatting.
 ///
 /// `RenderingOptions` is a [`Renderer`] without an attached [`Render`] trait.
-/// It is mainly used to construct `Renderer` instances.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// It is mainly used to construct [`Renderer`] instances.
+///
+/// Transformations are applied in the order of:
+/// 1. scale
+/// 2. rotation
+/// 3. translation
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct RenderingOptions {
     translation: Vector2,
     rotation: f32,
@@ -75,7 +231,7 @@ pub struct RenderingOptions {
 }
 
 impl RenderingOptions {
-    /// Construct a new `RendererBuilder` with the supplied `Render` trait
+    /// Construct a new [`Renderer`] with the supplied `Render` trait
     /// object for output that is equivalent to the `{}` formatting
     /// specifier:
     ///
@@ -83,6 +239,7 @@ impl RenderingOptions {
     /// - no rotation
     /// - 1x scale
     /// - no tint (white)
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             translation: Vector2::ZERO,
@@ -92,39 +249,43 @@ impl RenderingOptions {
         }
     }
 
-    pub fn translation(&mut self, translation: Vector2) -> &mut Self {
+    pub const fn translation(&mut self, translation: Vector2) -> &mut Self {
         self.translation = translation;
         self
     }
 
-    pub fn rotation(&mut self, rotation: f32) -> &mut Self {
+    pub const fn rotation(&mut self, rotation: f32) -> &mut Self {
         self.rotation = rotation;
         self
     }
 
-    pub fn scale(&mut self, scale: Vector2) -> &mut Self {
+    pub const fn scale(&mut self, scale: Vector2) -> &mut Self {
         self.scale = scale;
         self
     }
 
-    pub fn tint(&mut self, tint: Color) -> &mut Self {
+    pub const fn tint(&mut self, tint: Color) -> &mut Self {
         self.tint = tint;
         self
     }
 
-    pub fn get_translation(&mut self) -> Vector2 {
+    #[must_use]
+    pub const fn get_translation(&self) -> Vector2 {
         self.translation
     }
 
-    pub fn get_rotation(&mut self) -> f32 {
+    #[must_use]
+    pub const fn get_rotation(&self) -> f32 {
         self.rotation
     }
 
-    pub fn get_scale(&mut self) -> Vector2 {
+    #[must_use]
+    pub const fn get_scale(&self) -> Vector2 {
         self.scale
     }
 
-    pub fn get_tint(&mut self) -> Color {
+    #[must_use]
+    pub const fn get_tint(&self) -> Color {
         self.tint
     }
 
@@ -149,7 +310,7 @@ impl Default for RenderingOptions {
 ///
 /// A `Renderer` represents various options related to formatting. Users do not
 /// construct `Renderer`s directly; a mutable reference to one is passed to
-/// the `fmt` method of all formatting traits, like [`Debug`] and [`Display`].
+/// the `fmt` method of all formatting traits, like [`DebugVis`] and [`Draw`].
 ///
 /// To interact with a `Renderer`, you'll call various methods to change the
 /// various options related to formatting. For examples, please see the
@@ -176,8 +337,8 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    /// Creates a new formatter based on this one with given [`RenderingOptions`].
-    pub fn with_options<'b>(&'b mut self, options: RenderingOptions) -> Renderer<'b> {
+    /// Creates a new renderer based on this one with given [`RenderingOptions`].
+    pub fn with_options(&mut self, options: RenderingOptions) -> Renderer<'_> {
         Renderer {
             options,
             buf: self.buf,
@@ -185,19 +346,19 @@ impl<'a> Renderer<'a> {
     }
 }
 
-/// This structure represents a safely precompiled version of a format string
+/// This structure represents a safely precompiled version of a render string
 /// and its arguments. This cannot be generated at runtime because it cannot
 /// safely be done, so no constructors are given and the fields are private
 /// to prevent modification.
 ///
-/// The [`format_args!`] macro will safely create an instance of this structure.
-/// The macro validates the format string at compile-time so usage of the
-/// [`write()`] and [`format()`] functions can be safely performed.
+/// The [`render_args!`] macro will safely create an instance of this structure.
+/// The macro validates the render string at compile-time so usage of the
+/// [`render()`] functions can be safely performed.
 ///
-/// You can use the `Arguments<'a>` that [`format_args!`] returns in `Debug`
+/// You can use the `Arguments<'a>` that [`render_args!`] returns in `Debug`
 /// and `Display` contexts as seen below. The example also shows that `Debug`
-/// and `Display` format to the same thing: the interpolated format string
-/// in `format_args!`.
+/// and `Display` render to the same thing: the interpolated render string
+/// in `render_args!`.
 #[derive(Copy, Clone)]
 pub struct Arguments<'a> {
     // Placeholder specs, or `None` if all specs are default (as in "{}{}").
@@ -216,73 +377,47 @@ impl DebugVis for Arguments<'_> {
 
 impl Draw for Arguments<'_> {
     fn draw(&self, d: &mut Renderer<'_>) -> Result {
-        write(d.buf, *self)
+        render(d.buf, *self)
     }
 }
 
-pub trait DebugVis: ?Sized {
+pub trait DebugVis {
     fn draw(&self, d: &mut Renderer<'_>) -> Result;
 }
 
-pub trait Draw: ?Sized {
+pub trait Draw {
     fn draw(&self, d: &mut Renderer<'_>) -> Result;
 }
 
 pub fn render(output: &mut dyn Render, args: Arguments<'_>) -> Result {
     let mut formatter = Renderer::new(output, RenderingOptions::new());
-    let mut idx = 0;
 
     match args.fmt {
         None => {
             // We can use default formatting parameters for all arguments.
-            for (i, arg) in args.args.iter().enumerate() {
-                // SAFETY: args.args and args.pieces come from the same Arguments,
-                // which guarantees the indexes are always within bounds.
-                let piece = unsafe { args.pieces.get_unchecked(i) };
-                if !piece.is_empty() {
-                    formatter.buf.write_str(*piece)?;
-                }
-
+            for arg in args.args {
                 // SAFETY: There are no formatting parameters and hence no
                 // count arguments.
                 unsafe {
                     arg.fmt(&mut formatter)?;
                 }
-                idx += 1;
             }
         }
         Some(fmt) => {
             // Every spec has a corresponding argument that is preceded by
             // a string piece.
-            for (i, arg) in fmt.iter().enumerate() {
-                // SAFETY: fmt and args.pieces come from the same Arguments,
-                // which guarantees the indexes are always within bounds.
-                let piece = unsafe { args.pieces.get_unchecked(i) };
-                if !piece.is_empty() {
-                    formatter.buf.write_str(*piece)?;
-                }
+            for arg in fmt {
                 // SAFETY: arg and args.args come from the same Arguments,
                 // which guarantees the indexes are always within bounds.
                 unsafe { run(&mut formatter, arg, args.args) }?;
-                idx += 1;
             }
         }
-    }
-
-    // There can be only one trailing string piece left.
-    if let Some(piece) = args.pieces.get(idx) {
-        formatter.buf.write_str(*piece)?;
     }
 
     Ok(())
 }
 
 unsafe fn run(fmt: &mut Renderer<'_>, arg: &rt::Placeholder, args: &[rt::Argument<'_>]) -> Result {
-    // let (width, precision) =
-    //     // SAFETY: arg and args come from the same Arguments,
-    //     // which guarantees the indexes are always within bounds.
-    //     unsafe { (getcount(args, &arg.width), getcount(args, &arg.precision)) };
-
     let options = RenderingOptions {
         translation: arg.translation,
         rotation: arg.rotation,
@@ -304,119 +439,80 @@ unsafe fn run(fmt: &mut Renderer<'_>, arg: &rt::Placeholder, args: &[rt::Argumen
     unsafe { value.fmt(fmt) }
 }
 
-// unsafe fn getcount(args: &[rt::Argument<'_>], cnt: &rt::Count) -> u16 {
-//     match *cnt {
-//         rt::Count::Is(n) => n,
-//         rt::Count::Implied => 0,
-//         rt::Count::Param(i) => {
-//             debug_assert!(i < args.len());
-//             // SAFETY: cnt and args come from the same Arguments,
-//             // which guarantees this index is always within bounds.
-//             unsafe { args.get_unchecked(i).as_u16().unwrap_unchecked() }
-//         }
-//     }
-// }
-
-impl<'a> Renderer<'a> {
-    /// Writes some data to the underlying buffer contained within this
-    /// formatter.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::fmt;
-    ///
-    /// struct Foo;
-    ///
-    /// impl fmt::Display for Foo {
-    ///     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-    ///         formatter.write_str("Foo")
-    ///         // This is equivalent to:
-    ///         // write!(formatter, "Foo")
-    ///     }
-    /// }
-    ///
-    /// assert_eq!(format!("{Foo}"), "Foo");
-    /// assert_eq!(format!("{Foo:0>8}"), "Foo");
-    /// ```
-    pub fn write_str(&mut self, data: &str) -> Result {
-        self.buf.write_str(data)
+impl Renderer<'_> {
+    /// Renders some data to the underlying buffer contained within this renderer.
+    pub fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        self.buf.render_lines(points)
     }
 
-    /// Glue for usage of the [`write!`] macro with implementors of this trait.
+    /// Renders some data to the underlying buffer contained within this renderer.
+    ///
+    /// Provide `points` in counter-clockwise order.
+    pub fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        self.buf.render_triangles(points)
+    }
+
+    /// Renders some data to the underlying buffer contained within this renderer.
+    ///
+    /// Provide `points` in counter-clockwise order.
+    pub fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        self.buf.render_quads(texture_id, points)
+    }
+
+    /// Glue for usage of the [`render!`] macro with implementors of this trait.
     ///
     /// This method should generally not be invoked manually, but rather through
-    /// the [`write!`] macro itself.
+    /// the [`render!`] macro itself.
     ///
-    /// Writes some formatted information into this instance.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::fmt;
-    ///
-    /// struct Foo(i32);
-    ///
-    /// impl fmt::Display for Foo {
-    ///     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-    ///         formatter.write_fmt(format_args!("Foo {}", self.0))
-    ///     }
-    /// }
-    ///
-    /// assert_eq!(format!("{}", Foo(-1)), "Foo -1");
-    /// assert_eq!(format!("{:0>8}", Foo(2)), "Foo 2");
-    /// ```
+    /// Renders some formatted information into this instance.
     #[inline]
-    pub fn write_fmt(&mut self, fmt: Arguments<'_>) -> Result {
-        if let Some(s) = fmt.as_statically_known_str() {
-            self.buf.write_str(s)
-        } else {
-            write(self.buf, fmt)
-        }
+    pub fn render(&mut self, args: Arguments<'_>) -> Result {
+        render(self.buf, args)
     }
 
     #[must_use]
-    pub fn translation(&self) -> Vector2 {
+    pub const fn translation(&self) -> Vector2 {
         self.options.translation
     }
 
     #[must_use]
-    pub fn rotation(&self) -> f32 {
+    pub const fn rotation(&self) -> f32 {
         self.options.rotation
     }
 
     #[must_use]
-    pub fn scale(&self) -> Vector2 {
+    pub const fn scale(&self) -> Vector2 {
         self.options.scale
     }
 
     #[must_use]
-    pub fn tint(&self) -> Color {
+    pub const fn tint(&self) -> Color {
         self.options.tint
     }
 
     /// Returns the rendering options this renderer corresponds to.
+    #[must_use]
     pub const fn options(&self) -> RenderingOptions {
         self.options
     }
 }
 
 impl Render for Renderer<'_> {
-    fn draw_lines(&mut self, s: &str) -> Result {
-        self.buf.draw_lines(s)
+    fn render_lines(&mut self, p: &[Vertex]) -> Result {
+        self.buf.render_lines(p)
     }
 
-    fn draw_triangles(&mut self, c: char) -> Result {
-        self.buf.draw_triangles(c)
+    fn render_triangles(&mut self, p: &[Vertex]) -> Result {
+        self.buf.render_triangles(p)
     }
 
-    fn draw_quads(&mut self, c: char) -> Result {
-        self.buf.draw_quads(c)
+    fn render_quads(&mut self, id: Option<NonZeroU32>, p: &[TexVertex]) -> Result {
+        self.buf.render_quads(id, p)
     }
 
     #[inline]
-    fn draw(&mut self, args: Arguments<'_>) -> Result {
-        write(self.buf, args)
+    fn render(&mut self, args: Arguments<'_>) -> Result {
+        render(self.buf, args)
     }
 }
 
@@ -427,7 +523,67 @@ impl std::fmt::Display for Error {
 }
 
 impl Draw for Error {
-    fn draw(&self, f: &mut Renderer<'_>) -> Result {
+    fn draw(&self, _d: &mut Renderer<'_>) -> Result {
         // Draw::draw("an error occurred when formatting an argument", f)
+        todo!()
+    }
+}
+
+// Implementations of the core formatting traits
+
+macro_rules! draw_refs {
+    ($($tr:ident),*) => {
+        $(
+        impl<T: ?Sized + $tr> $tr for &T {
+            fn draw(&self, d: &mut Renderer<'_>) -> Result { $tr::draw(&**self, d) }
+        }
+        impl<T: ?Sized + $tr> $tr for &mut T {
+            fn draw(&self, d: &mut Renderer<'_>) -> Result { $tr::draw(&**self, d) }
+        }
+        )*
+    }
+}
+
+draw_refs! { DebugVis, Draw }
+
+impl Draw for Vertex {
+    fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        d.render_quads(
+            None,
+            &[
+                TexVertex::new(self.position).with_texcoords_uv(0.0, 1.0),
+                TexVertex::new(self.position).with_texcoords_uv(0.0, 0.0),
+                TexVertex::new(self.position).with_texcoords_uv(1.0, 0.0),
+                TexVertex::new(self.position).with_texcoords_uv(1.0, 1.0),
+            ],
+        )
+    }
+}
+
+impl Draw for Vector2 {
+    fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        Vertex::new_v(*self).draw(d)
+    }
+}
+
+impl Draw for Texture2D {
+    fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        #[allow(clippy::cast_precision_loss)]
+        let (width, height) = (self.width as f32, self.height as f32);
+        let angle = Vector2::from_angle(d.rotation());
+        let [p0, p1, p2, p3] = [
+            Vector2::new(0.0, 0.0),
+            Vector2::new(0.0, height),
+            Vector2::new(width, height),
+            Vector2::new(width, 0.0),
+        ]
+        .map(|p| TexVertex::new(angle.rotate(p * d.scale()) + d.translation()));
+        let points = [
+            p0.with_texcoords_uv(0.0, 1.0),
+            p1.with_texcoords_uv(0.0, 0.0),
+            p2.with_texcoords_uv(1.0, 0.0),
+            p3.with_texcoords_uv(1.0, 1.0),
+        ];
+        d.render_quads(NonZeroU32::new(self.id), &points)
     }
 }

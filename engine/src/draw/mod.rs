@@ -17,3 +17,17 @@ impl std::error::Error for Error {}
 
 /// The type returned by renderer methods.
 pub type Result = std::result::Result<(), Error>;
+
+#[macro_export]
+macro_rules! render_args {
+    ($($arg:tt)*) => {
+        [$($arg)*]
+    };
+}
+
+#[macro_export]
+macro_rules! render {
+    ($dst:expr, $($arg:tt)*) => {
+        $crate::draw2d::Render::render($dst, $crate::draw2d::Arguments::new_v1(&$crate::render_args!($($arg)*)))
+    };
+}
