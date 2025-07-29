@@ -2,11 +2,7 @@
 
 use super::Result;
 use raylib::prelude::*;
-use std::{marker::PhantomData, ptr::NonNull};
-
-macro_rules! render_args {
-    () => {};
-}
+use std::{marker::PhantomData, num::NonZeroU32, ptr::NonNull};
 
 /// This struct represents a generic "argument" which is taken by [`render_args!()`].
 ///
@@ -24,7 +20,32 @@ pub struct Argument<'a> {
     _lifetime: PhantomData<&'a ()>,
 }
 
+macro_rules! argument_new {
+    ($t:ty, $x:expr, $f:expr) => {
+        // INVARIANT: this creates an `Argument<'a>` from a `&'a T` and
+        // a `fn(&T, ...)`, so the invariant is maintained.
+        Argument {
+            value: NonNull::<$t>::from_ref($x).cast(),
+            renderer: {
+                let f: fn(&$t, &mut Renderer<'_>) -> Result = $f;
+                // SAFETY: This is only called with `value`, which has the right type.
+                unsafe { std::mem::transmute(f) }
+            },
+            _lifetime: PhantomData,
+        }
+    };
+}
+
 impl Argument<'_> {
+    #[inline]
+    pub const fn new_draw<T: Draw>(x: &T) -> Argument<'_> {
+        argument_new!(T, x, <T as Draw>::draw)
+    }
+    #[inline]
+    pub const fn new_debug_vis<T: DebugVis>(x: &T) -> Argument<'_> {
+        argument_new!(T, x, <T as DebugVis>::draw)
+    }
+
     /// Format this placeholder argument.
     ///
     /// # Safety
@@ -43,6 +64,11 @@ impl Argument<'_> {
         // to calling the original function passed to `new` with the
         // original reference, which is sound.
         unsafe { renderer(value, d) }
+    }
+
+    #[inline]
+    pub const fn none() -> [Self; 0] {
+        []
     }
 }
 
@@ -85,40 +111,162 @@ pub fn render(output: &mut dyn Render, args: Arguments<'_>) -> Result {
     Ok(())
 }
 
+#[macro_export]
+macro_rules! render_args {
+    ($arg:expr) => {
+        Arguments {
+            args: &[Argument::new_draw($arg)],
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! render {
+    ($d:expr, $($args:tt)*) => {
+        $crate::draw2d::render($d, $crate::render_args!($($args)*))
+    };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Vertex {
+    position: Vector2,
+    color: Option<Color>,
+}
+
+impl Vertex {
+    #[must_use]
+    pub const fn new(position: Vector2) -> Self {
+        Self {
+            position,
+            color: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_color(self, color: Color) -> Self {
+        Self {
+            position: self.position,
+            color: Some(color),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct TexVertex {
+    position: Vector2,
+    texcoords: Vector2,
+    color: Option<Color>,
+}
+
+impl TexVertex {
+    #[must_use]
+    pub const fn new(position: Vector2) -> Self {
+        Self {
+            position,
+            texcoords: Vector2::ZERO,
+            color: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_texcoords(self, texcoords: Vector2) -> Self {
+        Self {
+            position: self.position,
+            texcoords,
+            color: self.color,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_color(self, color: Color) -> Self {
+        Self {
+            position: self.position,
+            texcoords: self.texcoords,
+            color: Some(color),
+        }
+    }
+}
+
 /// A trait for drawing onto 3D buffers.
 pub trait Render {
-    /// Draws a line with optional thickness.
-    fn draw_line(
-        &mut self,
-        start_pos: Vector2,
-        end_pos: Vector2,
-        thick: Option<f32>,
-        color: Color,
-    ) -> Result;
+    /// Draw lines.
+    fn draw_lines(&mut self, points: &[Vertex]) -> Result;
 
-    /// Draws a triangle.
-    fn draw_triangle(&mut self, points: &[Vector2; 3], color: Color) -> Result;
+    /// Draw triangles. Arguments should be provided in counter-clockwise order.
+    fn draw_triangles(&mut self, points: &[Vertex]) -> Result;
 
+    /// Draw textured quads. Arguments should be provided in counter-clockwise order.
+    fn draw_quads(&mut self, points: &[TexVertex], texture_id: NonZeroU32) -> Result;
+
+    /// Draw anything that implements Draw
     fn draw(&mut self, args: Arguments<'_>) -> Result;
 }
 
 impl<D: RaylibDraw> Render for D {
-    fn draw_line(
-        &mut self,
-        start_pos: Vector2,
-        end_pos: Vector2,
-        thick: Option<f32>,
-        color: Color,
-    ) -> Result {
-        match thick {
-            Some(thick) => self.draw_line_ex(start_pos, end_pos, thick, color),
-            None => self.draw_line_v(start_pos, end_pos, color),
+    fn draw_lines(&mut self, points: &[Vertex]) -> Result {
+        // SAFETY: Borrowing self (a RaylibDraw) mutably ensures rlgl drawing is safe.
+        #[allow(clippy::multiple_unsafe_ops_per_block)]
+        unsafe {
+            ffi::rlBegin(ffi::RL_LINES.cast_signed());
+            ffi::rlNormal3f(0.0, 0.0, 1.0);
+            for point in points {
+                let &Vertex {
+                    position: Vector2 { x, y },
+                    color,
+                } = point;
+                if let Some(Color { r, g, b, a }) = color {
+                    ffi::rlColor4ub(r, g, b, a);
+                }
+                ffi::rlVertex2f(x, y);
+            }
+            ffi::rlEnd();
         }
         Ok(())
     }
 
-    fn draw_triangle(&mut self, &[v1, v2, v3]: &[Vector2; 3], color: Color) -> Result {
-        self.draw_triangle(v1, v2, v3, color);
+    fn draw_triangles(&mut self, points: &[Vertex]) -> Result {
+        // SAFETY: Borrowing self (a RaylibDraw) mutably ensures rlgl drawing is safe.
+        #[allow(clippy::multiple_unsafe_ops_per_block)]
+        unsafe {
+            ffi::rlBegin(ffi::RL_TRIANGLES.cast_signed());
+            ffi::rlNormal3f(0.0, 0.0, 1.0);
+            for point in points {
+                let &Vertex {
+                    position: Vector2 { x, y },
+                    color,
+                } = point;
+                if let Some(Color { r, g, b, a }) = color {
+                    ffi::rlColor4ub(r, g, b, a);
+                }
+                ffi::rlVertex2f(x, y);
+            }
+            ffi::rlEnd();
+        }
+        Ok(())
+    }
+
+    fn draw_quads(&mut self, points: &[TexVertex], texture_id: NonZeroU32) -> Result {
+        // SAFETY: Borrowing self (a RaylibDraw) mutably ensures rlgl drawing is safe.
+        #[allow(clippy::multiple_unsafe_ops_per_block)]
+        unsafe {
+            ffi::rlSetTexture(texture_id.get());
+            ffi::rlBegin(ffi::RL_QUADS.cast_signed());
+            ffi::rlNormal3f(0.0, 0.0, 1.0);
+            for point in points {
+                let &TexVertex {
+                    position: Vector2 { x, y },
+                    texcoords: Vector2 { x: u, y: v },
+                    color,
+                } = point;
+                if let Some(Color { r, g, b, a }) = color {
+                    ffi::rlColor4ub(r, g, b, a);
+                }
+                ffi::rlTexCoord2f(u, v);
+                ffi::rlVertex2f(x, y);
+            }
+            ffi::rlEnd();
+            ffi::rlSetTexture(0);
+        }
         Ok(())
     }
 
@@ -232,7 +380,7 @@ pub struct Renderer<'a> {
 }
 
 impl<'a> Renderer<'a> {
-    pub fn new(render: &'a mut (dyn Render + 'a), options: RenderingOptions) -> Self {
+    pub const fn new(render: &'a mut (dyn Render + 'a), options: RenderingOptions) -> Self {
         Self {
             options,
             buf: render,
@@ -240,7 +388,7 @@ impl<'a> Renderer<'a> {
     }
 
     /// Creates a new formatter based on this one with given [`RenderingOptions`].
-    pub fn with_options<'b>(&'b mut self, options: RenderingOptions) -> Renderer<'b> {
+    pub const fn with_options(&mut self, options: RenderingOptions) -> Renderer<'_> {
         Renderer {
             options,
             buf: self.buf,
@@ -260,4 +408,52 @@ pub trait DebugVis {
 pub trait Draw {
     #[doc = include_str!("draw_trait_method_doc.md")]
     fn draw(&self, d: &mut Renderer<'_>) -> Result;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Line {
+    pub start_pos: Vector2,
+    pub end_pos: Vector2,
+}
+
+impl Draw for Line {
+    fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        d.buf.draw_lines(&[
+            Vertex::new(self.start_pos + d.options.translation).with_color(d.options.tint),
+            Vertex::new(self.end_pos + d.options.translation),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Triangle {
+    pub points: [Vector2; 3],
+}
+
+impl Draw for Triangle {
+    fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test0() {
+        let (mut rl, thread) = init().build();
+
+        let line = Line {
+            start_pos: Vector2::new(80.0, 5.0),
+            end_pos: Vector2::new(32.0, 200.0),
+        };
+
+        while !rl.window_should_close() {
+            let mut d = rl.begin_drawing(&thread);
+            d.clear_background(Color::BLACK);
+
+            render!(&mut d, &line).unwrap();
+        }
+    }
 }
