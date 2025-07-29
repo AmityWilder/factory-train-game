@@ -9,7 +9,7 @@
     clippy::unnecessary_safety_comment,
     clippy::must_use_candidate,
     missing_docs,
-    missing_debug_implementations
+    // missing_debug_implementations
 )]
 #![deny(clippy::perf, clippy::multiple_unsafe_ops_per_block)]
 #![forbid(clippy::missing_safety_doc, clippy::undocumented_unsafe_blocks)]

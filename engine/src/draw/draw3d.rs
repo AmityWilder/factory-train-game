@@ -67,9 +67,14 @@ impl RaylibDraw for Renderer<'_> {}
 
 /// `DebugVis` should render the output in a programmer-facing, debugging context.
 pub trait DebugVis {
+    #[doc = include_str!("draw_trait_method_doc.md")]
     fn draw(&self, d: &mut Renderer<'_>) -> Result;
 }
 
+/// Render trait for a typical render.
+///
+/// `Draw` is similar to [`DebugVis`], but `Draw` is for user-facing output.
 pub trait Draw {
+    #[doc = include_str!("draw_trait_method_doc.md")]
     fn draw(&self, d: &mut Renderer<'_>) -> Result;
 }
