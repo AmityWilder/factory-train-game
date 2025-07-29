@@ -1,4 +1,37 @@
 //! 2D rendering.
+//!
+//! ```
+//! use raylib::prelude::*;
+//! use engine::{render, draw2d::*};
+//! ```
+
+#[test]
+fn test0() {
+    use crate::render;
+
+    let (mut rl, thread) = init().build();
+
+    let line = Line {
+        start_pos: Vector2::new(80.0, 5.0),
+        end_pos: Vector2::new(32.0, 200.0),
+    };
+
+    let triangle = Triangle {
+        points: [
+            Vector2::new(50.0, 20.0),
+            Vector2::new(100.0, 200.0),
+            Vector2::new(300.0, 60.0),
+        ],
+    };
+
+    while !rl.window_should_close() {
+        let mut d = rl.begin_drawing(&thread);
+        d.clear_background(Color::BLACK);
+
+        render!(&mut d, &line).unwrap();
+        render!(&mut d, &triangle).unwrap();
+    }
+}
 
 use super::Result;
 use raylib::prelude::*;
@@ -72,40 +105,64 @@ impl Argument<'_> {
     }
 }
 
-/// This structure represents a safely precompiled version of a render group
-/// and its arguments. This cannot be generated at runtime because it cannot
-/// safely be done, so no constructors are given and the fields are private
-/// to prevent modification.
-///
-/// The [`render_args!`] macro will safely create an instance of this structure.
-/// The macro validates the render group at compile-time so usage of the
-/// [`render()`] function can be safely performed.
-///
-/// You can use the `Arguments<'a>` that [`render_args!`] returns in [`DebugVis`]
-/// and [`Draw`] contexts as seen below. The example also shows that [`DebugVis`]
-/// and [`Draw`] render to the same thing: the interpolated render group
-/// in `render_args!`.
-#[derive(Copy, Clone)]
-pub struct Arguments<'a> {
-    // Dynamic arguments for rendering
-    args: &'a [Argument<'a>],
-}
+// /// This struct represents the unsafety of constructing an [`Arguments`].
+// /// It exists, rather than an unsafe function, in order to simplify the expansion
+// /// of [`render_args!`] and reduce the scope of the `unsafe` block.
+// pub struct UnsafeArg {
+//     _private: (),
+// }
+
+// impl UnsafeArg {
+//     /// See documentation where [`UnsafeArg`] is required to know when it is safe to
+//     /// create and use [`UnsafeArg`].
+//     #[inline]
+//     pub const unsafe fn new() -> Self {
+//         Self { _private: () }
+//     }
+// }
+
+// #[derive(Copy, Clone)]
+// pub struct Arguments<'a> {
+//     args: &'a [Argument<'a>],
+// }
+
+// impl<'a> Arguments<'a> {
+//     /// Specifies nonstandard formatting parameters.
+//     ///
+//     /// An [`UnsafeArg`] is required because the following invariants must be held
+//     /// in order for this function to be safe:
+//     /// 1. The `pieces` slice must be at least as long as `draw`.
+//     /// 2. Every `Placeholder::position` value within `draw` must be a valid index of `args`.
+//     /// 3. Every `Count::Param` within `draw` must contain a valid index of `args`.
+//     ///
+//     /// This function should _not_ be const, to make sure we don't accept
+//     /// [`render_args!`] and panic!() with arguments in const, even when not evaluated
+//     #[inline]
+//     pub fn new(
+//         args: &'a [Argument<'a>],
+//         draw: &'a [Placeholder],
+//         _unsafe_arg: UnsafeArg,
+//     ) -> Arguments<'a> {
+//         Arguments {
+//             pieces,
+//             fmt: Some(fmt),
+//             args,
+//         }
+//     }
+// }
 
 /// Takes an output stream and an `Arguments` struct that can be precompiled with
 /// the `render_args!` macro.
 ///
 /// The arguments will be rendered according to the specified render string
 /// into the output stream provided.
-pub fn render(output: &mut dyn Render, args: Arguments<'_>) -> Result {
+pub fn render(output: &mut dyn Render, arg: Argument<'_>) -> Result {
     let mut renderer = Renderer::new(output, RenderingOptions::new());
 
-    // We can use default formatting parameters for all arguments.
-    for arg in args.args {
-        // SAFETY: There are no formatting parameters and hence no
-        // count arguments.
-        unsafe {
-            arg.draw(&mut renderer)?;
-        }
+    // SAFETY: There are no formatting parameters and hence no
+    // count arguments.
+    unsafe {
+        arg.draw(&mut renderer)?;
     }
 
     Ok(())
@@ -114,9 +171,7 @@ pub fn render(output: &mut dyn Render, args: Arguments<'_>) -> Result {
 #[macro_export]
 macro_rules! render_args {
     ($arg:expr) => {
-        Arguments {
-            args: &[Argument::new_draw($arg)],
-        }
+        Argument::new_draw($arg)
     };
 }
 
@@ -199,7 +254,7 @@ pub trait Render {
     fn draw_quads(&mut self, points: &[TexVertex], texture_id: NonZeroU32) -> Result;
 
     /// Draw anything that implements Draw
-    fn draw(&mut self, args: Arguments<'_>) -> Result;
+    fn draw(&mut self, args: Argument<'_>) -> Result;
 }
 
 impl<D: RaylibDraw> Render for D {
@@ -270,7 +325,7 @@ impl<D: RaylibDraw> Render for D {
         Ok(())
     }
 
-    fn draw(&mut self, args: Arguments<'_>) -> Result {
+    fn draw(&mut self, args: Argument<'_>) -> Result {
         render(self, args)
     }
 }
@@ -411,6 +466,11 @@ pub trait Draw {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Shape<'a> {
+    pub points: &'a [Vector2],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Line {
     pub start_pos: Vector2,
     pub end_pos: Vector2,
@@ -432,28 +492,10 @@ pub struct Triangle {
 
 impl Draw for Triangle {
     fn draw(&self, d: &mut Renderer<'_>) -> Result {
-        todo!()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test0() {
-        let (mut rl, thread) = init().build();
-
-        let line = Line {
-            start_pos: Vector2::new(80.0, 5.0),
-            end_pos: Vector2::new(32.0, 200.0),
-        };
-
-        while !rl.window_should_close() {
-            let mut d = rl.begin_drawing(&thread);
-            d.clear_background(Color::BLACK);
-
-            render!(&mut d, &line).unwrap();
-        }
+        d.buf.draw_triangles(&[
+            Vertex::new(self.points[0] + d.options.translation).with_color(d.options.tint),
+            Vertex::new(self.points[1] + d.options.translation),
+            Vertex::new(self.points[2] + d.options.translation),
+        ])
     }
 }
