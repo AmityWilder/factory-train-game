@@ -13,3 +13,5 @@ pub mod units;
 // Steric number describes molecular geometry
 
 // valance electrons are always the same in a single column of the periodic table
+
+// -ide specifies ions

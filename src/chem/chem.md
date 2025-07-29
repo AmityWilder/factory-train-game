@@ -101,3 +101,8 @@ Ion Summary: When cations pair up with anions to form neutral ionic compounds, t
 - $\sf \textsf{\textbf{H}}NO_3$ = nitric acid
 
 More bonds require more energy to break. Shorter bonds require more energy to break (i.e. smaller atoms make stronger bonds).
+
+
+# aaaa
+
+sp = linear, sp2 = trigonal planar, sp3 = quadragonal
