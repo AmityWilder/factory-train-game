@@ -123,8 +123,10 @@ pub trait Render {
     }
 }
 
+pub struct RaylibRender(());
+
 #[allow(clippy::multiple_unsafe_ops_per_block)]
-impl<D: ?Sized + RaylibDraw> Render for D {
+impl Render for RaylibRender {
     fn render_lines(&mut self, points: &[Vertex]) -> Result {
         // SAFETY: guaranteed by RaylibDraw
         unsafe {
@@ -211,6 +213,45 @@ impl<R: ?Sized + Render> Render for &mut R {
     fn render(&mut self, args: Arguments<'_>) -> Result {
         (**self).render(args)
     }
+}
+
+macro_rules! impl_rl_render {
+    ($(impl$(($($gen:tt)*))? Render for $D:ty {})*) => {
+        $(
+        impl$(<$($gen)*>)? Render for $D {
+            fn render_lines(&mut self, points: &[Vertex]) -> Result {
+                RaylibRender(()).render_lines(points)
+            }
+
+            fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+                RaylibRender(()).render_triangles(points)
+            }
+
+            fn render_quads(
+                &mut self,
+                texture_id: Option<NonZeroU32>,
+                points: &[TexVertex],
+            ) -> Result {
+                RaylibRender(()).render_quads(texture_id, points)
+            }
+
+            fn render(&mut self, args: Arguments<'_>) -> Result {
+                RaylibRender(()).render(args)
+            }
+        }
+        )*
+    };
+}
+
+impl_rl_render! {
+    impl Render for RaylibDrawHandle<'_> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibTextureMode<'a, '_, T> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibVRMode<'a, '_, T> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibMode2D<'a, T> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibMode3D<'a, T> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibShaderMode<'a, '_, T> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibBlendMode<'a, T> {}
+    impl('a, T: RaylibDraw + 'a) Render for RaylibScissorMode<'a, T> {}
 }
 
 /// Options for formatting.

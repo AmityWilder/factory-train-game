@@ -1,6 +1,6 @@
 //! Custom game engine using Raylib.
 
-#![feature(min_specialization, specialization)]
+#![feature(min_specialization)]
 #![warn(
     clippy::pedantic,
     clippy::all,
