@@ -1,0 +1,215 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Define Article %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass{article}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Using Packages %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{empheq}
+\usepackage{mdframed}
+\usepackage{booktabs}
+\usepackage{lipsum}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{psfrag}
+\usepackage{pgfplots}
+\usepackage{bm}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%% Page Setting %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\geometry{a4paper}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%% Define some useful colors %%%%%%%%%%%%%%%%%%%%%%%%%%
+\definecolor{ocre}{RGB}{243,102,25}
+\definecolor{mygray}{RGB}{243,243,244}
+\definecolor{deepGreen}{RGB}{26,111,0}
+\definecolor{shallowGreen}{RGB}{235,255,255}
+\definecolor{deepBlue}{RGB}{61,124,222}
+\definecolor{shallowBlue}{RGB}{235,249,255}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%% Define an orangebox command %%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand\orangebox[1]{\fcolorbox{ocre}{mygray}{\hspace{1em}#1\hspace{1em}}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%% English Environments %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newtheoremstyle{mytheoremstyle}{3pt}{3pt}{\normalfont}{0cm}{\rmfamily\bfseries}{}{1em}{{\color{black}\thmname{#1}~\thmnumber{#2}}\thmnote{\,--\,#3}}
+\newtheoremstyle{myproblemstyle}{3pt}{3pt}{\normalfont}{0cm}{\rmfamily\bfseries}{}{1em}{{\color{black}\thmname{#1}~\thmnumber{#2}}\thmnote{\,--\,#3}}
+\theoremstyle{mytheoremstyle}
+\newmdtheoremenv[linewidth=1pt,backgroundcolor=shallowGreen,linecolor=deepGreen,leftmargin=0pt,innerleftmargin=20pt,innerrightmargin=20pt,]{theorem}{Theorem}[section]
+\theoremstyle{mytheoremstyle}
+\newmdtheoremenv[linewidth=1pt,backgroundcolor=shallowBlue,linecolor=deepBlue,leftmargin=0pt,innerleftmargin=20pt,innerrightmargin=20pt,]{definition}{Definition}[section]
+\theoremstyle{myproblemstyle}
+\newmdtheoremenv[linecolor=black,leftmargin=0pt,innerleftmargin=10pt,innerrightmargin=10pt,]{problem}{Problem}[section]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plotting Settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepgfplotslibrary{colorbrewer}
+\pgfplotsset{width=8cm,compat=1.9}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Title & Author %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{Chem Notes}
+\author{Amy Wilder}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\maketitle
+
+\section{Solubility Rules for Ionic Compounds in Water}
+
+\begin{tabular}{lp{4in}}
+    \textbf{Ions} & \textbf{Comments} \\
+    \hline
+    \(\mathsf{{NH_4}^+, {Na}^+, {K}^+, {Li}^+}\)         & All common salts of these ions are soluble \\
+    \(\mathsf{{NO_3}^-, {CH_3COO}^-}\)                   & All common salts of these ions are soluble \\
+    \(\mathsf{{Cl}^-, {Br}^-, {I}^-}\)                   & All common salts of these ions are soluble, \textbf{\_except\_} those of \(\mathsf{{Ag}^+, {Pb}^{2+}, {Cu}^+,}\) and \(\mathsf{{{Hg}_2}^+}\). \\
+    \(\mathsf{{SO_4}^{2-}}\)                             & Most are soluble \textbf{\_except\_} those containing \(\mathsf{{Ca}^{2+}, {Sr}^{2+}, {Ba}^{2+},}\) and \(\mathsf{{Pb}^{2+}}\) ions \\
+    \(\mathsf{{OH}^-}\)                                  & All are insoluble, \textbf{\_except\_} those with \(\mathsf{{NH_4}^+}\) ion, Group 1A, and the larger members of Group 2A beginning with \(\mathsf{{Ca}^{2+}}\) \\
+    \(\mathsf{{CO_3}^{2-}, {PO_4}^{3-}, {C_2O_4}^{2-}}\) & All common salts are insoluble, \textbf{\_except\_} those of Group 1A and \(\mathsf{{NH_4}^+}\) \\
+\end{tabular}
+
+\section{Common ions and their respective charges}
+
+Ion Summary: When cations pair up with anions to form neutral ionic compounds, the word ``ion'' is dropped from both ion's names
+
+\textbf{Main group metals an Nonmetals:} predictable charges based upon their group/column.
+
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Lithium ion   & \(\mathsf {Li}^{1+}\) \\
+    Sodium ion    & \(\mathsf {Na}^{1+}\) \\
+    Potassium ion & \(\mathsf K^{1+}\)    \\
+    Rubidium ion  & \(\mathsf {Rb}^{1+}\) \\
+    Cesium ion    & \(\mathsf {Cs}^{1+}\) \\
+    ~             &
+\end{tabular}
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Berylium ion  & \(\mathsf {B}e^{2+}\) \\
+    Magnesium ion & \(\mathsf {Mg}^{2+}\) \\
+    Calcium ion   & \(\mathsf {Ca}^{2+}\) \\
+    Strontium ion & \(\mathsf {Sr}^{2+}\) \\
+    Barium ion    & \(\mathsf {Ba}^{2+}\) \\
+    Aluminum ion  & \(\mathsf {Al}^{3+}\) \\
+\end{tabular}
+
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Anion} \\
+    \hline
+    Oxide ion     & \(\mathsf O^{2-}\) \\
+    Sulfide ion   & \(\mathsf S^{2-}\) \\
+    ~             &              \\
+    Nitride ion   & \(\mathsf N^{3-}\) \\
+    Phosphide ion & \(\mathsf P^{3-}\) \\
+    ~             &              \\
+\end{tabular}
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Anion} \\
+    \hline
+    Bromide ion  & \(\mathsf {Br}^{1-}\) \\
+    Chloride ion & \(\mathsf {Cl}^{1-}\) \\
+    Fluoride ion & \(\mathsf F^{1-}\)    \\
+    Iodine ion   & \(\mathsf I^{1-}\)    \\
+    ~            &                 \\
+    ~            &                 \\
+\end{tabular}
+
+\textbf{Transition Metals} (and other metals with d orbitals): The charge for many of these can vary. Therefore Roman Numerals are used in their written name to indicate the exact ion. If a transition metal is in the cmpd, then you need to look at the anion to determine the charge of the metal cation.
+
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Cadmium ion & \(\mathsf {Cd}^{2+}\) \\
+    Zinc ion    & \(\mathsf {Zn}^{2+}\) \\
+    Silver ion  & \(\mathsf {Ag}^{2+}\) \\
+    Gold ion    & \(\mathsf {Au}^{2+}\) \\
+    ~           &                 \\
+\end{tabular}
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Cobalt \(\rm(II)\) ion    & \(\mathsf {Co}^{2+}\) \\
+    Cobalt \(\rm(III)\) ion   & \(\mathsf {Co}^{3+}\) \\
+    Iron \(\rm(II)\) ion      & \(\mathsf {Fe}^{2+}\) \\
+    Iron \(\rm(III)\) ion     & \(\mathsf {Fe}^{3+}\) \\
+    Chromium \(\rm(III)\) ion & \(\mathsf {Cr}^{3+}\) \\
+\end{tabular}
+
+
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Copper \(\rm(I)\) ion     & \(\mathsf {Cu}^{1+}\) \\
+    Copper \(\rm(II)\) ion    & \(\mathsf {Cu}^{2+}\) \\
+    Mercury \(\rm(II)\) ion   & \(\mathsf {Hg}^{2+}\) \\
+    Manganese \(\rm(II)\) ion & \(\mathsf {Mn}^{2+}\) \\
+    ~                       &                 \\
+\end{tabular}
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Tin \(\rm(II)\) ion    & \(\mathsf {Sn}^{2+}\) \\
+    Tin \(\rm(IV)\) ion    & \(\mathsf {Sn}^{4+}\) \\
+    Lead \(\rm(II)\) ion   & \(\mathsf {Pb}^{2+}\) \\
+    Lead \(\rm(IV)\) ion   & \(\mathsf {Pb}^{4+}\) \\
+    Nickel \(\rm(II)\) ion & \(\mathsf {Ni}^{2+}\) \\
+\end{tabular}
+
+\textbf{POLYATOMIC ions.} These ions contain covalently bonded atoms with an overall charge. They remain together in a GROUP.
+
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Cation} \\
+    \hline
+    Ammonium ion & \(\mathsf {NH_4}^{1+}\) \\
+    ~            &                   \\
+    ~            &                   \\
+\end{tabular}
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Anion} \\
+    \hline
+    Nitrate ion   & \(\mathsf {NH_4}^{1-}\) \\
+    Hydroxide ion & \(\mathsf {OH_4}^{1-}\) \\
+    Cyanide ion   & \(\mathsf {CN_4}^{1-}\) \\
+\end{tabular}
+
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Anion} \\
+    \hline
+    Sulfate ion   & \(\mathsf {SO_4}^{2-}\)  \\
+    Chromate ion  & \(\mathsf {CrO_4}^{2-}\) \\
+    Carbonate ion & \(\mathsf {CO_3}^{2-}\)  \\
+\end{tabular}
+\begin{tabular}{ll}
+    \textbf{Name} & \textbf{Anion} \\
+    \hline
+    Phosphate ion & \(\mathsf {PO_4}^{3-}\)      \\
+    ~             &                        \\
+    Acetate ion   & \(\mathsf {C_2H_3O_2}^{1-}\) \\
+\end{tabular}
+
+\textbf{Strong Acids are Molecular Compounds} (typically the formula starts with \textbf{``H''} followed by an anion).
+
+\begin{itemize}
+    \item \(\mathsf{HCl}\) = hydrochloric acid
+    \item \(\mathsf{HBr}\) = hydrobromic acid
+    \item \(\mathsf{H_2SO_4}\) = sulfuric acid
+    \item \(\mathsf{HNO_3}\) = nitric acid
+\end{itemize}
+
+More bonds require more energy to break. Shorter bonds require more energy to break (i.e. smaller atoms make stronger bonds).
+
+\section{Geometry}
+
+sp = linear, sp2 = trigonal planar, sp3 = quadragonal
+
+\section{Dynamic Equilibrium}
+
+
+
+\end{document}

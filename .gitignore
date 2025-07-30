@@ -1,1 +1,6 @@
 /target
+/info/*.aux
+/info/*.fls
+/info/*.log
+/info/*.fdb_latexmk
+/info/*.gz
