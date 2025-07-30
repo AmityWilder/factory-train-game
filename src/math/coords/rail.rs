@@ -73,8 +73,8 @@ impl RailVector3 {
     }
 
     #[inline]
-    pub const fn to_player_relative(self, player_pos: PlayerVector3) -> Vector3 {
-        self.to_player().minus(player_pos).to_vec3()
+    pub const fn to_player_relative(self, player_pos: &PlayerVector3) -> Vector3 {
+        self.to_player().minus(*player_pos).to_vec3()
     }
 
     #[inline]

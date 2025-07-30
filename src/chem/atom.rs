@@ -1,6 +1,9 @@
 use super::element::Element;
 use super::units::{ELECTRON_MASS, NEUTRON_MASS, PROTON_MASS};
 use crate::chem::fmt::Superscript;
+use crate::resource::Resources;
+use arrayvec::ArrayVec;
+use raylib::prelude::*;
 
 macro_rules! isotopes {
     ($($element:ident $neutrons:literal),* $(,)?) => {
@@ -433,6 +436,67 @@ impl Atom {
     /// - positive = fewer electrons
     pub const fn charge(self) -> i16 {
         self.element.protons().get() as i16 - self.electrons as i16
+    }
+
+    pub fn draw(self, d: &mut impl RaylibDraw3D, position: Vector3, scale: f32) {
+        const GOLDEN_ANGLE: f32 = 2.0 * std::f32::consts::PI / std::f32::consts::PHI;
+
+        let mut is_proton = false;
+        let mut protons = u16::from(self.element.protons().get());
+        let mut neutrons = self.neutrons;
+        let nucleons = protons + neutrons;
+
+        let rise = if nucleons > 1 {
+            -2.0 / f32::from(nucleons - 1)
+        } else {
+            0.0
+        };
+
+        let mut points = ArrayVec::<(Vector3, Color), 255>::new();
+
+        for i in 0..nucleons {
+            is_proton = match (protons, neutrons) {
+                (0, _) => false,
+                (_, 0) => true,
+                (_, _) => !is_proton,
+            };
+
+            let offset = if nucleons > 1 {
+                let y = rise * f32::from(i) + 1.0; // y goes from 1 to -1
+                let radius = (1.0 - y * y).sqrt(); // radius at y
+                let theta = GOLDEN_ANGLE * f32::from(i); // golden angle increment
+                let (z, x) = theta.sin_cos();
+                Vector3::new(x * radius, y, z * radius)
+            } else {
+                Vector3::ZERO
+            };
+
+            points.push((offset, if is_proton { Color::RED } else { Color::GRAY }));
+
+            *if is_proton {
+                &mut protons
+            } else {
+                &mut neutrons
+            } -= 1;
+        }
+
+        let mut min_distance = f32::MAX;
+        for (p1, _) in &points {
+            for (p2, _) in
+        }
+
+        for (offset, color) in points {
+            d.draw_sphere(position + offset * scale * 2.0, scale, color);
+        }
+
+        // todo
+        for i in 0..self.electrons {
+            d.draw_sphere(
+                position + Vector3::new(f32::from(i) * scale * 2.0, 0.0, scale * 4.0),
+                scale * 0.5,
+                Color::DODGERBLUE,
+            );
+        }
     }
 }
 

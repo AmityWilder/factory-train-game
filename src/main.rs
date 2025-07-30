@@ -15,6 +15,7 @@
     clippy::must_use_candidate
 )]
 #![feature(
+    more_float_constants,
     const_trait_impl,
     new_range_api,
     unchecked_shifts,
@@ -24,7 +25,8 @@
     assert_matches,
     const_try,
     const_range_bounds,
-    associated_type_defaults
+    associated_type_defaults,
+    array_windows
 )]
 
 mod chem;
@@ -43,6 +45,7 @@ use crate::{
     math::bounds::FactoryBounds,
     region::{RegionId, rail::World},
 };
+use chem::element::Element;
 use math::{
     bounds::LabBounds,
     coords::{LabVector3, VectorConstants},
@@ -106,16 +109,6 @@ fn main() {
     rl.disable_cursor();
 
     let resources = Resources::new(&mut rl, &thread);
-
-    let font = rl
-        .load_font_from_memory(
-            &thread,
-            ".ttf",
-            include_bytes!("../assets/FiraCode-Regular.ttf"),
-            20,
-            None,
-        )
-        .unwrap();
 
     let mut bindings = Bindings::default_binds();
 
@@ -222,17 +215,32 @@ fn main() {
                 },
                 Color::ORANGE,
             );
-            current_region.to_region(&factories, &lab, &world).draw(
-                &mut d,
-                &thread,
-                &resources,
-                &player,
-            );
+            current_region
+                .to_region(&factories, &lab, &world)
+                .draw(&mut d, &thread, &resources, &player);
+
+            for (i, atom) in [
+                Element::H.atom().neutral().build(),
+                Element::He.atom().neutrons(2).neutral().build(),
+                Element::Li.atom().neutrons(3).neutral().build(),
+                Element::F.atom().neutrons(5).neutral().build(),
+                Element::F.atom().neutrons(13).neutral().build(),
+                Element::U.atom().neutrons(143).neutral().build(),
+            ]
+            .iter()
+            .enumerate()
+            {
+                atom.draw(
+                    &mut d,
+                    RailVector3::new(0, 1, i.try_into().unwrap()).to_player_relative(player_pos),
+                    0.03,
+                );
+            }
         }
 
         d.draw_fps(0, 0);
         d.draw_text_ex(
-            &font,
+            &resources.font,
             &format!(
                 "player position: ({:.3}, {:.3}, {:.3})\n\
                 player velocity: ({:.3}, {:.3}, {:.3})\n\

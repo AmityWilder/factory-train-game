@@ -17,6 +17,10 @@
 \usepackage{psfrag}
 \usepackage{pgfplots}
 \usepackage{bm}
+\usepackage{chemfig}
+\usepackage[version=4]{mhchem}
+\usepackage{chemformula}
+\usepackage{elements}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%% Page Setting %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -58,6 +62,22 @@
 
 \begin{document}
 \maketitle
+
+\noindent
+\ch{"\chlewis{0.}{H}"}\quad
+\ch{"\chlewis{0:}{He}"}\\
+\ch{"\chlewis{0.}{Li}"}\quad
+\ch{"\chlewis{0.180.}{Be}"}\quad
+\ch{"\chlewis{0.90.180.}{B}"}\quad
+\ch{"\chlewis{0.90.180.270.}{C}"}\quad
+\ch{"\chlewis{0.90:180.270.}{N}"}\quad
+\ch{"\chlewis{0.90:180:270.}{O}"}\quad
+\ch{"\chlewis{0.90:180:270:}{F}"}\quad
+\ch{"\chlewis{0:90:180:270:}{Ne}"}\quad \\
+
+\chemfig{H-[1]O-[7]H} \\
+
+\chemfig{*6(-=(-CH_3)---(=G)=)}
 
 \section{Solubility Rules for Ionic Compounds in Water}
 
@@ -208,8 +228,51 @@ More bonds require more energy to break. Shorter bonds require more energy to br
 
 sp = linear, sp2 = trigonal planar, sp3 = quadragonal
 
+\section{Intermolecular Forces}
+
+IMFs
+
+\begin{tabular}{p{1in}p{1in}p{1in}p{1in}}
+
+
+\end{tabular}
+
 \section{Dynamic Equilibrium}
 
+When two opposite processes reach the same rate so that there is no gain or loss of material.
+\begin{itemize}
+    \item This \textbf{does not} mean there are equal amounts of vapor and liquid; it means that they are \textit{\textbf{changing}} by equal amounts.
+    \item
+    \item
+\end{itemize}
 
+The pressure exerted by vapor when it is in dynamic equilibrium with its liquid is called the \textbf{vapor pressure}.
+
+The weaker the attractive forces between the molecules, the more molecules will be in the vapor. Therefore,
+
+\begin{itemize}
+    \item The weaker the attractive forces, the higher the vapor pressure.
+    \item The higher the vapor pressure, the more volatile the liquid.
+\end{itemize}
+
+Dynamic equilibrium: Rate of vaporization = rate of condensation
+
+Volume is increased, pressure falls. More gas vaporizes. Pressure is restored.
+
+Volume is decreased, pressure rises. More gas condenses, pressure is restored.
+
+\subsection{Vapor pressure vs temperature}
+
+\[760\mathrm{torr} = 1\mathrm{atm} = 700\mathrm{mmHg}\]
+
+\begin{itemize}
+    \item Increasing temperature increases the number of molecules able to escape the liquid.
+    \item The net result is that as temperature increases, the vapor pressure increases
+    \item Small changes in temperature can make big changes in vapor pressure.
+    \begin{itemize}
+        \item  The rate of growth depends omn the strnegth of the intermolecular forces.
+        \item vapor pressure vs temperature curves graphically represent the relationship
+    \end{itemize}
+\end{itemize}
 
 \end{document}

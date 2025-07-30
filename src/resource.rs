@@ -15,6 +15,7 @@ pub static PERIODIC_OFFSETS: [(u8, u8); 118] = [
 
 #[derive(Debug)]
 pub struct Resources {
+    pub font: Font,
     pub skybox: Texture2D,
     pub reactor: Model,
     pub orbital_s: Model,
@@ -29,6 +30,15 @@ impl Resources {
     #[allow(clippy::too_many_lines, reason = "shut the fuck up")]
     pub fn new(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
         Self {
+            font: rl
+                .load_font_from_memory(
+                    &thread,
+                    ".ttf",
+                    include_bytes!("../assets/FiraCode-Regular.ttf"),
+                    20,
+                    None,
+                )
+                .unwrap(),
             skybox: {
                 let image = Image::gen_image_gradient_radial(
                     256,
