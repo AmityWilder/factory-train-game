@@ -480,13 +480,16 @@ impl Atom {
             } -= 1;
         }
 
-        let mut min_distance = f32::MAX;
-        for (p1, _) in &points {
-            for (p2, _) in
+        let mut min_distance = f32::INFINITY;
+        for (i, (p1, _)) in points.iter().enumerate() {
+            for (p2, _) in &points[i + 1..] {
+                min_distance = min_distance.min(p1.distance_squared(*p2));
+            }
         }
+        min_distance = min_distance.sqrt();
 
         for (offset, color) in points {
-            d.draw_sphere(position + offset * scale * 2.0, scale, color);
+            d.draw_sphere(position + offset * scale * 1.0 / min_distance, scale, color);
         }
 
         // todo
