@@ -755,24 +755,16 @@ mod tests {
 
     #[test]
     fn test0() {
-        const WIDTH: usize = 32;
-        const HEIGHT: usize = 16;
+        const B: Color = Color::BLACK;
+        const W: Color = Color::WHITE;
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let mut buf = Image::gen_image_color(WIDTH as i32, HEIGHT as i32, Color::BLACK);
-        render!(&mut buf, Vector2::new(5.0, 9.0)).unwrap();
+        let mut buf = Image::gen_image_color(5, 5, Color::BLACK);
+        render!(&mut buf, Vector2::new(3.0, 2.0)).unwrap();
         let colors = buf.get_image_data();
-        println!();
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                assert_eq!(
-                    colors[WIDTH * y + x],
-                    if y == 9 && x == 5 {
-                        Color::WHITE
-                    } else {
-                        Color::BLACK
-                    }
-                );
-            }
-        }
+        assert_eq!(&colors[00..05], &[B, B, B, B, B]);
+        assert_eq!(&colors[05..10], &[B, B, B, B, B]);
+        assert_eq!(&colors[10..15], &[B, B, B, W, B]);
+        assert_eq!(&colors[15..20], &[B, B, B, B, B]);
+        assert_eq!(&colors[20..25], &[B, B, B, B, B]);
     }
 }
