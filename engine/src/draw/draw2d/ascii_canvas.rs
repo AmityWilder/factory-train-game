@@ -24,14 +24,7 @@ pub struct AsciiCanvasing {
 
 impl Drop for AsciiCanvasing {
     fn drop(&mut self) {
-        // SAFETY: reassembling the vec from before
-        unsafe {
-            Vec::from_parts(
-                self.canvas.data,
-                self.canvas.width as usize * self.canvas.height as usize,
-                self.capacity,
-            );
-        }
+        drop(self.data_vec());
     }
 }
 
@@ -61,7 +54,20 @@ impl AsMut<AsciiCanvas> for AsciiCanvasing {
     }
 }
 
+impl std::fmt::Display for AsciiCanvasing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (**self).fmt(f)
+    }
+}
+
 impl AsciiCanvasing {
+    #[must_use = "dropping the returned vec will make `self.canvas.data` dangle"]
+    fn data_vec(&mut self) -> Vec<u8> {
+        let size = self.canvas.width as usize * self.canvas.height as usize;
+        // SAFETY: reassembling the vec from before
+        unsafe { Vec::from_parts(self.canvas.data, size, self.capacity) }
+    }
+
     pub const fn new() -> Self {
         let mut vec = Vec::new();
         // SAFETY: Vec pointer is guaranteed to be non-null
@@ -86,6 +92,27 @@ impl AsciiCanvasing {
                 data: Vec::with_capacity(capacity).into_parts().0,
             },
         }
+    }
+
+    pub fn resize(&mut self, new_width: uhalf, new_height: uhalf, fill_with: u8) {
+        let new_size = new_width as usize * new_height as usize;
+        if let Some(additional) = new_size.checked_sub(self.capacity) {
+            let mut vec = self.data_vec();
+            vec.resize(additional, fill_with);
+            (self.data, _, self.capacity) = vec.into_parts();
+        }
+        for y in (0..(self.height as usize)).rev() {
+            // SAFETY: idk
+            let src = unsafe { self.canvas.data.add(y * self.width as usize) };
+            // SAFETY: idk
+            let dst = unsafe { self.canvas.data.add(y * new_width as usize) };
+            // SAFETY: idk
+            unsafe {
+                dst.copy_from(src, self.width as usize);
+            }
+        }
+        self.width = new_width;
+        self.height = new_height;
     }
 }
 
@@ -112,15 +139,14 @@ impl std::ops::IndexMut<(uhalf, uhalf)> for AsciiCanvas {
 
 impl std::fmt::Display for AsciiCanvas {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::Write;
-        for row in self.data_slice().chunks(self.width as usize) {
-            // SAFETY: ASCII is UTF-8 compatible
-            f.write_str(unsafe { std::str::from_utf8_unchecked(row) })?;
-            f.write_char('\n')?;
+        for row in self.rows() {
+            writeln!(f, "{row}")?;
         }
         Ok(())
     }
 }
+
+pub type Rows<'a> = std::iter::Map<std::slice::ChunksExact<'a, u8>, fn(&[u8]) -> &str>;
 
 impl AsciiCanvas {
     pub const RAMP: &'static [u8] =
@@ -199,6 +225,15 @@ impl AsciiCanvas {
         self.height
     }
 
+    #[inline]
+    pub fn rows(&self) -> Rows<'_> {
+        self.data_slice()
+            .chunks_exact(self.width as usize)
+            .map(|row|
+            // SAFETY: ASCII is guaranteed compatible with UTF-8
+            unsafe { str::from_utf8_unchecked(row) })
+    }
+
     pub fn draw_pixel(&mut self, x: i32, y: i32, color: Color) {
         if let (Ok(x), Ok(y)) = (x.try_into(), y.try_into())
             && let Some(pixel) = self.get_mut(x, y)
@@ -270,5 +305,23 @@ impl AsciiCanvas {
 
         // Draw a vertical line using ImageDrawLine function
         self.draw_line(x1, y1, x2, y2, color);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test0() {
+        let mut canvas = AsciiCanvasing::new();
+        canvas.resize(4, 4, b' ');
+        canvas.draw_pixel(2, 3, Color::WHITE);
+        // print!("{canvas}");
+        for (y, row) in canvas.rows().enumerate() {
+            for (x, col) in row.bytes().enumerate() {
+                assert_eq!(col, if x == 2 && y == 3 { b'$' } else { b' ' });
+            }
+        }
     }
 }
