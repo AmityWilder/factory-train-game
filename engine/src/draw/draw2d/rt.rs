@@ -122,9 +122,7 @@ impl<'a> Arguments<'a> {
         reason = "This function should *not* be const, to make sure we don't accept \
         [`render_args!()`] and panic!() with arguments in const, even when not evaluated"
     )]
-    pub fn new_v1<const P: usize, const N: usize>(
-        args: &'a [rt::Argument<'a>; N],
-    ) -> Arguments<'a> {
+    pub fn new_v1<const N: usize>(args: &'a [rt::Argument<'a>; N]) -> Arguments<'a> {
         Arguments { fmt: None, args }
     }
 }

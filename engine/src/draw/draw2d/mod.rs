@@ -1,9 +1,15 @@
 //! Utilities for rendering in 2D.
 
 use raylib::prelude::*;
-use std::{marker::PhantomData, num::NonZeroU32};
+use std::{
+    marker::PhantomData,
+    num::{NonZeroI32, NonZeroU32},
+};
+
+use crate::draw2d::ascii_canvas::AsciiCanvas;
 
 // mod builders;
+mod ascii_canvas;
 mod rt;
 
 pub type Result = std::result::Result<(), Error>;
@@ -123,6 +129,108 @@ pub trait Render {
     }
 }
 
+impl<R: ?Sized + Render> Render for &mut R {
+    fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        (**self).render_lines(points)
+    }
+
+    fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        (**self).render_triangles(points)
+    }
+
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        (**self).render_quads(texture_id, points)
+    }
+
+    fn render(&mut self, args: Arguments<'_>) -> Result {
+        (**self).render(args)
+    }
+}
+
+impl Render for AsciiCanvas {
+    fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        for [v0, v1] in points.array_windows::<2>() {
+            let color = Color::color_from_normalized(
+                [v0.color, v1.color]
+                    .iter()
+                    .flatten()
+                    .map(Color::color_normalize)
+                    .map(Vector4::from)
+                    .sum::<Vector4>()
+                    .into(),
+            );
+            self.draw_line_v(v0.position, v1.position, color);
+        }
+        Ok(())
+    }
+
+    fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        todo!()
+    }
+
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        todo!()
+    }
+}
+
+impl Render for Image {
+    fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        for [v0, v1] in points.array_windows::<2>() {
+            let color = Color::color_from_normalized(
+                [v0.color, v1.color]
+                    .iter()
+                    .flatten()
+                    .map(Color::color_normalize)
+                    .map(Vector4::from)
+                    .sum::<Vector4>()
+                    .into(),
+            );
+            self.draw_line_v(v0.position, v1.position, color);
+        }
+        Ok(())
+    }
+
+    fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        for [v0, v1, v2] in points.array_chunks::<3>() {
+            let color = Color::color_from_normalized(
+                [v0.color, v1.color, v2.color]
+                    .iter()
+                    .flatten()
+                    .map(Color::color_normalize)
+                    .map(Vector4::from)
+                    .sum::<Vector4>()
+                    .into(),
+            );
+            self.draw_triangle(v0.position, v1.position, v2.position, color);
+        }
+        Ok(())
+    }
+
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        if texture_id.is_none() {
+            for [v0, v1, v2, v3] in points.array_chunks::<4>() {
+                let color = Color::color_from_normalized(
+                    [v0.color, v1.color, v2.color, v3.color]
+                        .iter()
+                        .flatten()
+                        .map(Color::color_normalize)
+                        .map(Vector4::from)
+                        .sum::<Vector4>()
+                        .into(),
+                );
+                self.draw_triangle_strip(
+                    &mut [v0.position, v1.position, v2.position, v3.position],
+                    color,
+                );
+            }
+            Ok(())
+        } else {
+            // applying texture to Image not implemented
+            Err(Error)
+        }
+    }
+}
+
 pub struct RaylibRender(());
 
 #[allow(clippy::multiple_unsafe_ops_per_block)]
@@ -176,7 +284,7 @@ impl Render for RaylibRender {
                 texture_id.map_or_else(|| ffi::GetShapesTexture().id, NonZeroU32::get),
             );
             #[allow(clippy::cast_possible_wrap)]
-            ffi::rlBegin(ffi::RL_TRIANGLES as i32);
+            ffi::rlBegin(ffi::RL_QUADS as i32);
             ffi::rlNormal3f(0.0, 0.0, 1.0);
             for point in points {
                 let &TexVertex {
@@ -187,6 +295,17 @@ impl Render for RaylibRender {
                 if let Some(Color { r, g, b, a }) = color {
                     ffi::rlColor4ub(r, g, b, a);
                 }
+                let (u, v) = if texture_id.is_none() {
+                    let tex = ffi::GetShapesTexture();
+                    let rec = ffi::GetShapesTextureRectangle();
+                    #[allow(clippy::cast_precision_loss)]
+                    (
+                        (rec.x + u * rec.width) / tex.width as f32,
+                        (rec.y + v * rec.height) / tex.height as f32,
+                    )
+                } else {
+                    (u, v)
+                };
                 ffi::rlTexCoord2f(u, v);
                 ffi::rlVertex2f(x, y);
             }
@@ -194,24 +313,6 @@ impl Render for RaylibRender {
             ffi::rlSetTexture(0);
         }
         Ok(())
-    }
-}
-
-impl<R: ?Sized + Render> Render for &mut R {
-    fn render_lines(&mut self, points: &[Vertex]) -> Result {
-        (**self).render_lines(points)
-    }
-
-    fn render_triangles(&mut self, points: &[Vertex]) -> Result {
-        (**self).render_triangles(points)
-    }
-
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
-        (**self).render_quads(texture_id, points)
-    }
-
-    fn render(&mut self, args: Arguments<'_>) -> Result {
-        (**self).render(args)
     }
 }
 
@@ -245,13 +346,13 @@ macro_rules! impl_rl_render {
 
 impl_rl_render! {
     impl Render for RaylibDrawHandle<'_> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibTextureMode<'a, '_, T> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibVRMode<'a, '_, T> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibMode2D<'a, T> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibMode3D<'a, T> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibShaderMode<'a, '_, T> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibBlendMode<'a, T> {}
-    impl('a, T: RaylibDraw + 'a) Render for RaylibScissorMode<'a, T> {}
+    impl('a, T: 'a) Render for RaylibTextureMode<'a, '_, T> {}
+    impl('a, T: 'a + RaylibDraw) Render for RaylibVRMode<'a, '_, T> {}
+    impl('a, T: 'a + RaylibDraw) Render for RaylibMode2D<'a, T> {}
+    impl('a, T: 'a + RaylibDraw) Render for RaylibMode3D<'a, T> {}
+    impl('a, T: 'a + RaylibDraw) Render for RaylibShaderMode<'a, '_, T> {}
+    impl('a, T: 'a + RaylibDraw) Render for RaylibBlendMode<'a, T> {}
+    impl('a, T: 'a + RaylibDraw) Render for RaylibScissorMode<'a, T> {}
 }
 
 /// Options for formatting.
@@ -589,13 +690,22 @@ draw_refs! { DebugVis, Draw }
 
 impl Draw for Vertex {
     fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        let tint = self.color.unwrap_or(Color::WHITE).tint(d.tint());
+        let [p0, p1, p2, p3] = [
+            Vector2::new(0.0, 0.0),
+            Vector2::new(0.0, 1.0),
+            Vector2::new(1.0, 1.0),
+            Vector2::new(1.0, 0.0),
+        ]
+        .map(|p| TexVertex::new(self.position + p + d.translation()));
+
         d.render_quads(
             None,
             &[
-                TexVertex::new(self.position).with_texcoords_uv(0.0, 1.0),
-                TexVertex::new(self.position).with_texcoords_uv(0.0, 0.0),
-                TexVertex::new(self.position).with_texcoords_uv(1.0, 0.0),
-                TexVertex::new(self.position).with_texcoords_uv(1.0, 1.0),
+                p0.with_texcoords_uv(0.0, 0.0).with_color(tint),
+                p1.with_texcoords_uv(0.0, 1.0),
+                p2.with_texcoords_uv(1.0, 1.0),
+                p3.with_texcoords_uv(1.0, 0.0),
             ],
         )
     }
@@ -620,11 +730,40 @@ impl Draw for Texture2D {
         ]
         .map(|p| TexVertex::new(angle.rotate(p * d.scale()) + d.translation()));
         let points = [
-            p0.with_texcoords_uv(0.0, 1.0),
+            p0.with_texcoords_uv(0.0, 1.0).with_color(d.tint()),
             p1.with_texcoords_uv(0.0, 0.0),
             p2.with_texcoords_uv(1.0, 0.0),
             p3.with_texcoords_uv(1.0, 1.0),
         ];
         d.render_quads(NonZeroU32::new(self.id), &points)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prelude::*;
+    use raylib::prelude::*;
+
+    #[test]
+    fn test0() {
+        const WIDTH: usize = 32;
+        const HEIGHT: usize = 16;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let mut buf = Image::gen_image_color(WIDTH as i32, HEIGHT as i32, Color::BLACK);
+        render!(&mut buf, Vector2::new(5.0, 9.0)).unwrap();
+        let colors = buf.get_image_data();
+        println!();
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                assert_eq!(
+                    colors[WIDTH * y + x],
+                    if y == 9 && x == 5 {
+                        Color::WHITE
+                    } else {
+                        Color::BLACK
+                    }
+                );
+            }
+        }
     }
 }

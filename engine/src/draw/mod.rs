@@ -21,7 +21,7 @@ pub type Result = std::result::Result<(), Error>;
 #[macro_export]
 macro_rules! render_args {
     ($($arg:tt)*) => {
-        [$($arg)*]
+        [$crate::draw2d::rt::Argument::new_draw(&$($arg)*)]
     };
 }
 
