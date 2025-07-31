@@ -95,11 +95,11 @@ impl AsciiCanvasing {
         }
     }
 
-    pub fn resize(&mut self, new_width: uhalf, new_height: uhalf, fill_with: u8) {
+    pub fn resize(&mut self, new_width: uhalf, new_height: uhalf, clear_fill: Color) {
         let new_size = new_width as usize * new_height as usize;
         if let Some(additional) = new_size.checked_sub(self.capacity) {
             let mut vec = self.data_vec();
-            vec.resize(additional, fill_with);
+            vec.resize(additional, AsciiCanvas::color_to_value(clear_fill));
             (self.data, _, self.capacity) = vec.into_parts();
         }
         for y in (0..(self.height as usize)).rev() {
@@ -550,7 +550,7 @@ mod tests {
     #[test]
     fn test_draw_pixel() {
         let mut canvas = AsciiCanvasing::new();
-        canvas.resize(4, 4, b' ');
+        canvas.resize(4, 4, Color::BLACK);
         canvas.draw_pixel(2, 3, Color::WHITE);
         print!("{canvas}");
         for (y, row) in canvas.rows().enumerate() {
@@ -563,7 +563,7 @@ mod tests {
     #[test]
     fn test_draw_triangle() {
         let mut canvas = AsciiCanvasing::new();
-        canvas.resize(12, 8, b' ');
+        canvas.resize(12, 8, Color::BLACK);
         canvas.draw_triangle_ex(
             Vector2::new(0.0, 0.0),
             Vector2::new(0.0, 7.0),
@@ -578,19 +578,19 @@ mod tests {
     #[test]
     fn test_draw_rectangle() {
         let mut canvas = AsciiCanvasing::new();
-        canvas.resize(8, 8, b'.');
+        canvas.resize(8, 8, Color::GRAY);
         canvas.draw_rectangle_rec(Rectangle::new(2.0, 1.0, 6.0, 3.0), Color::WHITE);
         assert_eq!(
             &canvas.to_string(),
             "\
-            ........\n\
-            ..$$$$$$\n\
-            ..$$$$$$\n\
-            ..$$$$$$\n\
-            ........\n\
-            ........\n\
-            ........\n\
-            ........\n\
+            xxxxxxxx\n\
+            xx$$$$$$\n\
+            xx$$$$$$\n\
+            xx$$$$$$\n\
+            xxxxxxxx\n\
+            xxxxxxxx\n\
+            xxxxxxxx\n\
+            xxxxxxxx\n\
             "
         );
     }
