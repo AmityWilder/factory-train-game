@@ -2,10 +2,7 @@
 
 use crate::ascii_canvas::AsciiCanvas;
 use raylib::prelude::*;
-use std::{
-    marker::PhantomData,
-    num::{NonZeroI32, NonZeroU32},
-};
+use std::{marker::PhantomData, num::NonZeroU32};
 
 // mod builders;
 mod rt;
@@ -176,7 +173,7 @@ impl Render for AsciiCanvas {
         Ok(())
     }
 
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+    fn render_quads(&mut self, _texture_id: Option<NonZeroU32>, _points: &[TexVertex]) -> Result {
         todo!()
     }
 }
@@ -751,6 +748,19 @@ mod tests {
     use crate::prelude::*;
     use raylib::prelude::*;
 
+    #[repr(transparent)]
+    struct ColorAsHex(Color);
+
+    impl std::fmt::Debug for ColorAsHex {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "{:02X}{:02X}{:02X}{:02X}",
+                self.0.r, self.0.g, self.0.b, self.0.a
+            )
+        }
+    }
+
     #[test]
     fn test0() {
         const B: Color = Color::BLACK;
@@ -759,10 +769,22 @@ mod tests {
         let mut buf = Image::gen_image_color(5, 5, Color::BLACK);
         render!(&mut buf, Vector2::new(3.0, 2.0)).unwrap();
         let colors = buf.get_image_data();
-        assert_eq!(&colors[00..05], &[B, B, B, B, B]);
-        assert_eq!(&colors[05..10], &[B, B, B, B, B]);
-        assert_eq!(&colors[10..15], &[B, B, B, W, B]);
-        assert_eq!(&colors[15..20], &[B, B, B, B, B]);
-        assert_eq!(&colors[20..25], &[B, B, B, B, B]);
+        for (row, expect) in colors.chunks(5).zip([
+            [B, B, B, B, B],
+            [B, B, B, B, B],
+            [B, B, B, W, B],
+            [B, B, B, B, B],
+            [B, B, B, B, B],
+        ]) {
+            assert_eq!(
+                row,
+                expect,
+                "\nexpect: {:?}\nactual: {:?}",
+                // SAFETY: ColorAsHex is just a wrapper for Color
+                unsafe { &*std::ptr::from_ref(&expect).cast::<[ColorAsHex; 5]>() },
+                // SAFETY: ColorAsHex is just a wrapper for Color
+                unsafe { &*(std::ptr::from_ref(row) as *const [ColorAsHex]) },
+            );
+        }
     }
 }
