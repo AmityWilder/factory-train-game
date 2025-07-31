@@ -165,7 +165,17 @@ impl Render for AsciiCanvas {
     }
 
     fn render_triangles(&mut self, points: &[Vertex]) -> Result {
-        todo!()
+        let mut last_color = Color::WHITE;
+        for [v0, v1, v2] in points.array_chunks::<3>() {
+            let [c0, c1, c2] = [v0.color, v1.color, v2.color].map(|c| {
+                if let Some(c) = c {
+                    last_color = c;
+                }
+                last_color
+            });
+            self.draw_triangle_ex(v0.position, v1.position, v2.position, c0, c1, c2);
+        }
+        Ok(())
     }
 
     fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
@@ -191,17 +201,15 @@ impl Render for Image {
     }
 
     fn render_triangles(&mut self, points: &[Vertex]) -> Result {
+        let mut last_color = Color::WHITE;
         for [v0, v1, v2] in points.array_chunks::<3>() {
-            let color = Color::color_from_normalized(
-                [v0.color, v1.color, v2.color]
-                    .iter()
-                    .flatten()
-                    .map(Color::color_normalize)
-                    .map(Vector4::from)
-                    .sum::<Vector4>()
-                    .into(),
-            );
-            self.draw_triangle(v0.position, v1.position, v2.position, color);
+            let [c0, c1, c2] = [v0.color, v1.color, v2.color].map(|c| {
+                if let Some(c) = c {
+                    last_color = c;
+                }
+                last_color
+            });
+            self.draw_triangle_ex(v0.position, v1.position, v2.position, c0, c1, c2);
         }
         Ok(())
     }
@@ -226,6 +234,7 @@ impl Render for Image {
             Ok(())
         } else {
             // applying texture to Image not implemented
+            // TODO: consider ffi::ImageDraw
             Err(Error)
         }
     }

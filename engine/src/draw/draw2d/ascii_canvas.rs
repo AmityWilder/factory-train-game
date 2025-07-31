@@ -1,19 +1,20 @@
 #![allow(dead_code)]
 
 use raylib::prelude::*;
-use std::ptr::NonNull;
+use std::{ops::Range, ptr::NonNull};
 
 #[cfg(target_pointer_width = "16")]
-#[allow(non_camel_case_types)]
-type uhalf = u8;
-
+type TargetUHalf = u8;
 #[cfg(target_pointer_width = "32")]
-#[allow(non_camel_case_types)]
-type uhalf = u16;
-
+type TargetUHalf = u16;
 #[cfg(target_pointer_width = "64")]
+type TargetUHalf = u32;
+
+///  Unsigned integer half the size of a [`usize`].
+///
+///  Despite not implementing [`From`], this type can be `as usize`'d losslessly.
 #[allow(non_camel_case_types)]
-type uhalf = u32;
+pub type uhalf = TargetUHalf;
 
 /// [`AsciiCanvasing`] is to [`AsciiCanvas`] as [`String`] is to [`str`]
 #[derive(Debug, PartialEq, Eq)]
@@ -114,6 +115,10 @@ impl AsciiCanvasing {
         self.width = new_width;
         self.height = new_height;
     }
+
+    pub fn push_row(&mut self, row: &[u8]) {
+        assert_eq!(row.len(), self.width as usize);
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -134,6 +139,20 @@ impl std::ops::Index<(uhalf, uhalf)> for AsciiCanvas {
 impl std::ops::IndexMut<(uhalf, uhalf)> for AsciiCanvas {
     fn index_mut(&mut self, (x, y): (uhalf, uhalf)) -> &mut Self::Output {
         self.get_mut(x, y).unwrap()
+    }
+}
+
+impl std::ops::Index<(Range<uhalf>, uhalf)> for AsciiCanvas {
+    type Output = [u8];
+
+    fn index(&self, (x, y): (Range<uhalf>, uhalf)) -> &Self::Output {
+        self.get_range(x, y).unwrap()
+    }
+}
+
+impl std::ops::IndexMut<(Range<uhalf>, uhalf)> for AsciiCanvas {
+    fn index_mut(&mut self, (x, y): (Range<uhalf>, uhalf)) -> &mut Self::Output {
+        self.get_range_mut(x, y).unwrap()
     }
 }
 
@@ -177,6 +196,13 @@ impl AsciiCanvas {
         }
     }
 
+    const fn index_of_range(&self, x: Range<uhalf>, y: uhalf) -> Option<Range<usize>> {
+        match (self.index_of(x.start, y), self.index_of(x.end - 1, y)) {
+            (Some(start), Some(end)) => Some(start..end),
+            _ => None,
+        }
+    }
+
     const fn data_len(&self) -> usize {
         self.width as usize * self.height as usize
     }
@@ -208,6 +234,24 @@ impl AsciiCanvas {
     #[must_use]
     pub const fn get_mut(&mut self, x: uhalf, y: uhalf) -> Option<&mut u8> {
         match self.index_of(x, y) {
+            Some(idx) => Some(&mut self.data_slice_mut()[idx]),
+            None => None,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn get_range(&self, x: Range<uhalf>, y: uhalf) -> Option<&[u8]> {
+        match self.index_of_range(x, y) {
+            Some(range) => Some(&self.data_slice()[range]),
+            None => None,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn get_range_mut(&mut self, x: Range<uhalf>, y: uhalf) -> Option<&mut [u8]> {
+        match self.index_of_range(x, y) {
             Some(idx) => Some(&mut self.data_slice_mut()[idx]),
             None => None,
         }
@@ -306,6 +350,197 @@ impl AsciiCanvas {
         // Draw a vertical line using ImageDrawLine function
         self.draw_line(x1, y1, x2, y2, color);
     }
+
+    pub fn draw_triangle_ex(
+        &mut self,
+        v1: Vector2,
+        v2: Vector2,
+        v3: Vector2,
+        c1: Color,
+        c2: Color,
+        c3: Color,
+    ) {
+        #![allow(clippy::similar_names, reason = "i disagree")]
+
+        // Calculate the 2D bounding box of the triangle
+        // Determine the minimum and maximum x and y coordinates of the triangle vertices
+
+        #[allow(clippy::cast_possible_truncation)]
+        let (x_min, y_min, x_max, y_max) = (
+            (v1.x.min(v2.x).min(v3.x) as i32).clamp(0, self.width.try_into().unwrap_or(i32::MAX)),
+            (v1.y.min(v2.y).min(v3.y) as i32).clamp(0, self.height.try_into().unwrap_or(i32::MAX)),
+            (v1.x.max(v2.x).max(v3.x) as i32).clamp(0, self.width.try_into().unwrap_or(i32::MAX)),
+            (v1.y.max(v2.y).max(v3.y) as i32).clamp(0, self.height.try_into().unwrap_or(i32::MAX)),
+        );
+
+        // Check the order of the vertices to determine if it's a front or back face
+        // NOTE: if signedArea is equal to 0, the face is degenerate
+        let signed_area = (v2.x - v1.x) * (v3.y - v1.y) - (v3.x - v1.x) * (v2.y - v1.y);
+        let is_back_face = signed_area > 0.0;
+
+        // Barycentric interpolation setup
+        // Calculate the step increments for the barycentric coordinates
+        #[allow(clippy::cast_possible_truncation)]
+        let (
+            mut w1_x_step,
+            mut w1_y_step,
+            mut w2_x_step,
+            mut w2_y_step,
+            mut w3_x_step,
+            mut w3_y_step,
+        ) = (
+            (v3.y - v2.y) as i32,
+            (v2.x - v3.x) as i32,
+            (v1.y - v3.y) as i32,
+            (v3.x - v1.x) as i32,
+            (v2.y - v1.y) as i32,
+            (v1.x - v2.x) as i32,
+        );
+
+        // If the triangle is a back face, invert the steps
+        if is_back_face {
+            w1_x_step = -w1_x_step;
+            w1_y_step = -w1_y_step;
+            w2_x_step = -w2_x_step;
+            w2_y_step = -w2_y_step;
+            w3_x_step = -w3_x_step;
+            w3_y_step = -w3_y_step;
+        }
+
+        // Calculate the initial barycentric coordinates for the top-left point of the bounding box
+        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+        let (mut w1_row, mut w2_row, mut w3_row) = (
+            ((x_min as f32 - v2.x) * w1_x_step as f32 + w1_y_step as f32 * (y_min as f32 - v2.y))
+                as i32,
+            ((x_min as f32 - v3.x) * w2_x_step as f32 + w2_y_step as f32 * (y_min as f32 - v3.y))
+                as i32,
+            ((x_min as f32 - v1.x) * w3_x_step as f32 + w3_y_step as f32 * (y_min as f32 - v1.y))
+                as i32,
+        );
+
+        // Calculate the inverse of the sum of the barycentric coordinates for normalization
+        // NOTE 1: Here, we act as if we multiply by 255 the reciprocal, which avoids additional
+        //         calculations in the loop. This is acceptable because we are only interpolating colors
+        // NOTE 2: This sum remains constant throughout the triangle
+        #[allow(clippy::cast_precision_loss)]
+        let w_inv_sum = 255.0 / (w1_row + w2_row + w3_row) as f32;
+
+        // Rasterization loop
+        // Iterate through each pixel in the bounding box
+        for y in y_min..=y_max {
+            let mut w1 = w1_row;
+            let mut w2 = w2_row;
+            let mut w3 = w3_row;
+
+            for x in x_min..=x_max {
+                // Check if the pixel is inside the triangle using barycentric coordinates
+                if (w1 | w2 | w3) >= 0 {
+                    // Compute the normalized barycentric coordinates
+                    #[allow(
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss,
+                        clippy::cast_precision_loss
+                    )]
+                    let (a_w1, a_w2, a_w3) = (
+                        (w1 as f32 * w_inv_sum) as u32,
+                        (w2 as f32 * w_inv_sum) as u32,
+                        (w3 as f32 * w_inv_sum) as u32,
+                    );
+
+                    // Interpolate the color using the barycentric coordinates
+                    let final_color = Color {
+                        r: ((u32::from(c1.r) * a_w1
+                            + u32::from(c2.r) * a_w2
+                            + u32::from(c3.r) * a_w3)
+                            / 255)
+                            .clamp(0, 255) as u8,
+                        g: ((u32::from(c1.g) * a_w1
+                            + u32::from(c2.g) * a_w2
+                            + u32::from(c3.g) * a_w3)
+                            / 255)
+                            .clamp(0, 255) as u8,
+                        b: ((u32::from(c1.b) * a_w1
+                            + u32::from(c2.b) * a_w2
+                            + u32::from(c3.b) * a_w3)
+                            / 255)
+                            .clamp(0, 255) as u8,
+                        a: ((u32::from(c1.a) * a_w1
+                            + u32::from(c2.a) * a_w2
+                            + u32::from(c3.a) * a_w3)
+                            / 255)
+                            .clamp(0, 255) as u8,
+                    };
+
+                    // Draw the pixel with the interpolated color
+                    self.draw_pixel(x, y, final_color);
+                }
+
+                // Increment the barycentric coordinates for the next pixel
+                w1 += w1_x_step;
+                w2 += w2_x_step;
+                w3 += w3_x_step;
+            }
+
+            // Move to the next row in the bounding box
+            w1_row += w1_y_step;
+            w2_row += w2_y_step;
+            w3_row += w3_y_step;
+        }
+    }
+
+    pub fn draw_rectangle_rec(&mut self, rec: Rectangle, color: Color) {
+        // Security check to avoid program crash
+        if self.width == 0 || self.height == 0 {
+            return;
+        }
+
+        #[allow(clippy::cast_precision_loss)]
+        let (self_width_f, self_height_f) = (self.width as f32, self.height as f32);
+
+        // Security check to avoid drawing out of bounds in case of bad user data
+        // and clamp the size the the image bounds
+        let x_min = rec.x.max(0.0);
+        let y_min = rec.y.max(0.0);
+        let x_max = (rec.x + rec.width).min(self_width_f);
+        let y_max = (rec.y + rec.height).min(self_height_f);
+
+        // Check if the rect is even inside the image
+        if (x_max <= 0.0)
+            || (y_max <= 0.0)
+            || (x_min >= self_width_f)
+            || (y_min >= self_height_f)
+            || x_max <= x_min
+            || y_max <= y_min
+        {
+            return;
+        }
+
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let (sx, sy, ex, ey) = (
+            x_min as uhalf,
+            y_min as uhalf,
+            x_max as uhalf,
+            y_max as uhalf,
+        );
+
+        // Fill in the first pixel of the first row based on image format
+        self[(sx, sy)] = Self::color_to_value(color);
+
+        let p_src_pixel = self[(sx, sy)];
+
+        // Repeat the first pixel data throughout the row
+        for x in (sx + 1)..ex {
+            self[(x, sy)] = p_src_pixel;
+        }
+
+        // Repeat the first row data for all other rows
+        for y in (sy + 1)..ey {
+            let src_range = (sy as usize * self.width as usize + sx as usize)
+                ..(sy as usize * self.width as usize + ex as usize);
+            let dst_start = y as usize * self.width as usize + sx as usize;
+            self.data_slice_mut().copy_within(src_range, dst_start);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -313,15 +548,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test0() {
+    fn test_draw_pixel() {
         let mut canvas = AsciiCanvasing::new();
         canvas.resize(4, 4, b' ');
         canvas.draw_pixel(2, 3, Color::WHITE);
-        // print!("{canvas}");
+        print!("{canvas}");
         for (y, row) in canvas.rows().enumerate() {
             for (x, col) in row.bytes().enumerate() {
                 assert_eq!(col, if x == 2 && y == 3 { b'$' } else { b' ' });
             }
         }
+    }
+
+    #[test]
+    fn test_draw_triangle() {
+        let mut canvas = AsciiCanvasing::new();
+        canvas.resize(12, 8, b' ');
+        canvas.draw_triangle_ex(
+            Vector2::new(0.0, 0.0),
+            Vector2::new(0.0, 7.0),
+            Vector2::new(std::f32::consts::SQRT_2 * 8.0, 3.5),
+            Color::RED,
+            Color::GREEN,
+            Color::BLUE,
+        );
+        print!("{canvas}");
+    }
+
+    #[test]
+    fn test_draw_rectangle() {
+        let mut canvas = AsciiCanvasing::new();
+        canvas.resize(8, 8, b'.');
+        canvas.draw_rectangle_rec(Rectangle::new(2.0, 1.0, 6.0, 3.0), Color::WHITE);
+        assert_eq!(
+            &canvas.to_string(),
+            "\
+            ........\n\
+            ..$$$$$$\n\
+            ..$$$$$$\n\
+            ..$$$$$$\n\
+            ........\n\
+            ........\n\
+            ........\n\
+            ........\n\
+            "
+        );
     }
 }

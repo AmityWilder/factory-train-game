@@ -106,3 +106,5 @@ More bonds require more energy to break. Shorter bonds require more energy to br
 # aaaa
 
 sp = linear, sp2 = trigonal planar, sp3 = quadragonal
+
+oil = hydrocarbon; non-polar
