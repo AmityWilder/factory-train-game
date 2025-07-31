@@ -550,14 +550,17 @@ mod tests {
     #[test]
     fn test_draw_pixel() {
         let mut canvas = AsciiCanvasing::new();
-        canvas.resize(4, 4, Color::BLACK);
+        canvas.resize(4, 4, Color::GRAY);
         canvas.draw_pixel(2, 3, Color::WHITE);
-        print!("{canvas}");
-        for (y, row) in canvas.rows().enumerate() {
-            for (x, col) in row.bytes().enumerate() {
-                assert_eq!(col, if x == 2 && y == 3 { b'$' } else { b' ' });
-            }
-        }
+        assert_eq!(
+            &canvas.to_string(),
+            "\
+            xxxx\n\
+            xxxx\n\
+            xxxx\n\
+            xx$x\n\
+            "
+        );
     }
 
     #[test]
