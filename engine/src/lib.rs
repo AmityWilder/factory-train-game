@@ -17,6 +17,7 @@
 #![deny(clippy::perf, clippy::multiple_unsafe_ops_per_block)]
 #![allow(clippy::missing_errors_doc)]
 
+pub mod ascii_canvas;
 pub mod draw;
 pub use draw::{draw2d, draw3d};
 

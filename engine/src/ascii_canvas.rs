@@ -1,7 +1,5 @@
-#![allow(dead_code)]
-
 use raylib::prelude::*;
-use std::{ops::Range, ptr::NonNull};
+use std::{marker::PhantomData, ops::Range, ptr::NonNull};
 
 #[cfg(target_pointer_width = "16")]
 type TargetUHalf = u8;
@@ -23,67 +21,120 @@ pub struct AsciiCanvasing {
     canvas: AsciiCanvas,
 }
 
+impl Default for AsciiCanvasing {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for AsciiCanvasing {
     fn drop(&mut self) {
         drop(self.data_vec());
     }
 }
 
+impl Clone for AsciiCanvasing {
+    fn clone(&self) -> Self {
+        // SAFETY: data_slice is guaranteed to have a len of self.width * self.height
+        unsafe { Self::from_vec_unchecked(self.width, self.height, self.data_slice().to_vec()) }
+    }
+}
+
 impl std::ops::Deref for AsciiCanvasing {
     type Target = AsciiCanvas;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.canvas
     }
 }
 
 impl std::ops::DerefMut for AsciiCanvasing {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.canvas
     }
 }
 
 impl AsRef<AsciiCanvas> for AsciiCanvasing {
+    #[inline]
     fn as_ref(&self) -> &AsciiCanvas {
         self
     }
 }
 
 impl AsMut<AsciiCanvas> for AsciiCanvasing {
+    #[inline]
     fn as_mut(&mut self) -> &mut AsciiCanvas {
         self
     }
 }
 
 impl std::fmt::Display for AsciiCanvasing {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (**self).fmt(f)
     }
 }
 
+/// `width` * `height`
+#[inline]
+#[must_use]
+const fn area(w: uhalf, h: uhalf) -> usize {
+    w as usize * h as usize
+}
+
 impl AsciiCanvasing {
-    #[must_use = "dropping the returned vec will make `self.canvas.data` dangle"]
+    #[must_use = "dropping the returned vec will leave `self.canvas.data` dangling"]
     fn data_vec(&mut self) -> Vec<u8> {
-        let size = self.canvas.width as usize * self.canvas.height as usize;
         // SAFETY: reassembling the vec from before
-        unsafe { Vec::from_parts(self.canvas.data, size, self.capacity) }
+        unsafe { Vec::from_parts(self.canvas.data, self.canvas.data_len(), self.capacity) }
     }
 
+    #[must_use]
     pub const fn new() -> Self {
-        let mut vec = Vec::new();
+        // SAFETY: Vec::new().len() == 0 * 0
+        unsafe { Self::from_vec_unchecked(0, 0, Vec::new()) }
+    }
+
+    /// # Safety
+    ///
+    /// `vec.len` must equal `width * height`
+    #[must_use]
+    pub const unsafe fn from_vec_unchecked(width: uhalf, height: uhalf, mut vec: Vec<u8>) -> Self {
         // SAFETY: Vec pointer is guaranteed to be non-null
         let data = unsafe { NonNull::new_unchecked(vec.as_mut_ptr()) };
+        let capacity = vec.capacity();
         std::mem::forget(vec); // We'll free it in the destructor
         Self {
-            capacity: 0,
+            capacity,
             canvas: AsciiCanvas {
-                width: 0,
-                height: 0,
+                width,
+                height,
                 data,
+                _marker: PhantomData,
             },
         }
     }
 
+    /// Returns [`Err`] if `vec`'s length does not equal `width * height`
+    pub const fn from_vec(width: uhalf, height: uhalf, vec: Vec<u8>) -> Result<Self, Vec<u8>> {
+        if area(width, height) == vec.len() {
+            // SAFETY: just checked
+            Ok(unsafe { Self::from_vec_unchecked(width, height, vec) })
+        } else {
+            Err(vec)
+        }
+    }
+
+    #[must_use]
+    pub fn new_filled(width: uhalf, height: uhalf, clear_fill: Color) -> Self {
+        let clear_fill = AsciiCanvas::color_to_value(clear_fill);
+        // SAFETY: Vec constructed from width * height
+        unsafe { Self::from_vec_unchecked(width, height, vec![clear_fill; area(width, height)]) }
+    }
+
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             capacity,
@@ -91,52 +142,82 @@ impl AsciiCanvasing {
                 width: 0,
                 height: 0,
                 data: Vec::with_capacity(capacity).into_parts().0,
+                _marker: PhantomData,
             },
         }
     }
 
-    pub fn resize(&mut self, new_width: uhalf, new_height: uhalf, clear_fill: Color) {
-        let new_size = new_width as usize * new_height as usize;
-        if let Some(additional) = new_size.checked_sub(self.capacity) {
-            let mut vec = self.data_vec();
-            vec.resize(additional, AsciiCanvas::color_to_value(clear_fill));
-            (self.data, _, self.capacity) = vec.into_parts();
-        }
+    pub fn resize(&mut self, width: uhalf, height: uhalf, clear_fill: Color) {
+        let new_size = area(width, height);
+        let mut vec = self.data_vec();
+        vec.resize(new_size, AsciiCanvas::color_to_value(clear_fill));
         for y in (0..(self.height as usize)).rev() {
-            // SAFETY: idk
-            let src = unsafe { self.canvas.data.add(y * self.width as usize) };
-            // SAFETY: idk
-            let dst = unsafe { self.canvas.data.add(y * new_width as usize) };
-            // SAFETY: idk
-            unsafe {
-                dst.copy_from(src, self.width as usize);
-            }
+            vec.copy_within(
+                (y * self.width as usize)..((y + 1) * self.width as usize),
+                y * width as usize,
+            );
         }
-        self.width = new_width;
-        self.height = new_height;
+        // SAFETY: vec has been resized to width * height
+        *self = unsafe { Self::from_vec_unchecked(width, height, vec) };
     }
 
-    pub fn push_row(&mut self, row: &[u8]) {
-        assert_eq!(row.len(), self.width as usize);
+    pub fn from_image(image: &Image) -> Result<Self, std::num::TryFromIntError> {
+        let width = image.width.try_into()?;
+        let height = image.height.try_into()?;
+        let vec = image
+            .get_image_data()
+            .iter()
+            .copied()
+            .map(AsciiCanvas::color_to_value)
+            .collect::<Vec<u8>>();
+        // SAFETY: get_image_data is guaranteed to return a slice of len == width * height
+        Ok(unsafe { Self::from_vec_unchecked(width, height, vec) })
+    }
+
+    #[must_use]
+    pub fn to_image(&self) -> Option<Image> {
+        let width = self.width.try_into().ok()?;
+        let height = self.height.try_into().ok()?;
+        let mut image = Image::gen_image_color(width, height, Color::BLACK);
+        image.set_format(PixelFormat::PIXELFORMAT_UNCOMPRESSED_GRAYSCALE);
+        let image_data = NonNull::new(image.data)?;
+        // SAFETY: Separate allocations cannot overlap. gen_image_color is guaranteed to return a valid,
+        // aligned pointer if it is not null.
+        unsafe {
+            image_data
+                .cast::<u8>()
+                .copy_from_nonoverlapping(self.data, self.canvas.data_len());
+        };
+        Some(image)
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct AsciiCanvas {
+    data: NonNull<u8>,
     width: uhalf,
     height: uhalf,
-    data: NonNull<u8>,
+    _marker: PhantomData<[u8]>,
 }
+
+// AsciiCanvas should be isomorphic to a fat pointer (i would like for it to be)
+const _: () = {
+    assert!(std::mem::size_of::<AsciiCanvas>() == std::mem::size_of::<&[u8]>());
+    assert!(std::mem::align_of::<AsciiCanvas>() == std::mem::align_of::<&[u8]>());
+    assert!(std::mem::offset_of!(AsciiCanvas, data) == 0);
+};
 
 impl std::ops::Index<(uhalf, uhalf)> for AsciiCanvas {
     type Output = u8;
 
+    #[inline]
     fn index(&self, (x, y): (uhalf, uhalf)) -> &Self::Output {
         self.get(x, y).unwrap()
     }
 }
 
 impl std::ops::IndexMut<(uhalf, uhalf)> for AsciiCanvas {
+    #[inline]
     fn index_mut(&mut self, (x, y): (uhalf, uhalf)) -> &mut Self::Output {
         self.get_mut(x, y).unwrap()
     }
@@ -145,12 +226,14 @@ impl std::ops::IndexMut<(uhalf, uhalf)> for AsciiCanvas {
 impl std::ops::Index<(Range<uhalf>, uhalf)> for AsciiCanvas {
     type Output = [u8];
 
+    #[inline]
     fn index(&self, (x, y): (Range<uhalf>, uhalf)) -> &Self::Output {
         self.get_range(x, y).unwrap()
     }
 }
 
 impl std::ops::IndexMut<(Range<uhalf>, uhalf)> for AsciiCanvas {
+    #[inline]
     fn index_mut(&mut self, (x, y): (Range<uhalf>, uhalf)) -> &mut Self::Output {
         self.get_range_mut(x, y).unwrap()
     }
@@ -190,7 +273,7 @@ impl AsciiCanvas {
 
     const fn index_of(&self, x: uhalf, y: uhalf) -> Option<usize> {
         if x < self.width && y < self.height {
-            Some(y as usize * self.width as usize + x as usize)
+            Some(area(y, self.width) + x as usize)
         } else {
             None
         }
@@ -204,7 +287,7 @@ impl AsciiCanvas {
     }
 
     const fn data_len(&self) -> usize {
-        self.width as usize * self.height as usize
+        area(self.width, self.height)
     }
 
     const fn data_nonnull_slice(&self) -> NonNull<[u8]> {

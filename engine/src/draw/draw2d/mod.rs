@@ -1,15 +1,13 @@
 //! Utilities for rendering in 2D.
 
+use crate::ascii_canvas::AsciiCanvas;
 use raylib::prelude::*;
 use std::{
     marker::PhantomData,
     num::{NonZeroI32, NonZeroU32},
 };
 
-use crate::draw2d::ascii_canvas::AsciiCanvas;
-
 // mod builders;
-mod ascii_canvas;
 mod rt;
 
 pub type Result = std::result::Result<(), Error>;
