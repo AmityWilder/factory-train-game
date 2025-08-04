@@ -103,8 +103,28 @@ Ion Summary: When cations pair up with anions to form neutral ionic compounds, t
 More bonds require more energy to break. Shorter bonds require more energy to break (i.e. smaller atoms make stronger bonds).
 
 
-# aaaa
+# TBD
 
 sp = linear, sp2 = trigonal planar, sp3 = quadragonal
 
 oil = hydrocarbon; non-polar
+
+lattice energy is always exothermic. The size and sign on the heat of the solution tells us about the heat of hydration.
+If the heat of the solution is large and endothermic, then the amount of energy it costs to separate the ions is more than the energy released from hydrating the ions.
+
+$\textrm{signof}(\Delta H_{\textrm{lattice}} - \Delta H_{\textrm{hydration}}) = \textrm{signof}(\Delta H_{\textrm{soln}})$
+$$\begin{align*}
+    \Delta H_{\textrm{solution}} &= \Delta H_{\textrm{solute}} + \Delta H_{\textrm{solvent}} + \Delta H_{\textrm{mix}} \\
+    \Delta H_{\textrm{solution}} &= -\Delta H_{\textrm{lattice energy}} + \left[\Delta H_{\textrm{solvent}} + \Delta H_{\textrm{mix}}\right] \\
+    \Delta H_{\textrm{solution}} &= \Delta H_{\textrm{hydration}} - \Delta H_{\textrm{lattice energy}} \\
+    \Delta H_{\textrm{solution}} &= -\Delta H_{\textrm{lattice energy}} + \Delta H_{\textrm{hydration}} + \Delta H_{\textrm{mix}}
+\end{align*}$$
+
+When ions dissolve in water they become hydrated (each ion is surrounded by water molecules). The formation of ion-dipole attractions cause the heat of hydration to be very exothermic.
+
+Shortly after some solute is dissolved, solute particles can start to recombine to reform solute molecules, the rate of dissolution is much greater than the rate of deposition and the solute continues to dissolve.
+Eventually the rate of
+
+A solution with more solute than saturation is supersaturated
+
+Solubility graph

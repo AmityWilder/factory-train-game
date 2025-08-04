@@ -20,8 +20,17 @@ pub type Result = std::result::Result<(), Error>;
 
 #[macro_export]
 macro_rules! render_args {
-    ($($arg:tt)*) => {
-        [$crate::draw2d::rt::Argument::new_draw(&$($arg)*)]
+    ({$arg:ident}) => {
+        $crate::render_args!({}, $arg)
+    };
+    ({$arg:ident:?}) => {
+        $crate::render_args!({:?}, $arg)
+    };
+    ({}, $arg:expr) => {
+        [$crate::draw2d::rt::Argument::new_draw(&$arg)]
+    };
+    ({:?}, $arg:expr) => {
+        [$crate::draw2d::rt::Argument::new_debug_vis(&$arg)]
     };
 }
 

@@ -4,8 +4,10 @@ use crate::ascii_canvas::AsciiCanvas;
 use raylib::prelude::*;
 use std::{marker::PhantomData, num::NonZeroU32};
 
-// mod builders;
+mod builders;
 mod rt;
+
+pub use builders::DebugStructure;
 
 pub type Result = std::result::Result<(), Error>;
 
@@ -91,6 +93,7 @@ impl TexVertex {
 }
 
 pub trait Render {
+    fn render_pixels(&mut self, points: &[Vertex]) -> Result;
     fn render_lines(&mut self, points: &[Vertex]) -> Result;
     fn render_triangles(&mut self, points: &[Vertex]) -> Result;
     fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result;
@@ -125,6 +128,10 @@ pub trait Render {
 }
 
 impl<R: ?Sized + Render> Render for &mut R {
+    fn render_pixels(&mut self, points: &[Vertex]) -> Result {
+        (**self).render_pixels(points)
+    }
+
     fn render_lines(&mut self, points: &[Vertex]) -> Result {
         (**self).render_lines(points)
     }
@@ -143,18 +150,29 @@ impl<R: ?Sized + Render> Render for &mut R {
 }
 
 impl Render for AsciiCanvas {
+    fn render_pixels(&mut self, points: &[Vertex]) -> Result {
+        let mut prev_color = Color::BLACK;
+        for v in points {
+            if let Some(color) = v.color {
+                prev_color = color;
+            }
+            self.draw_pixel_v(v.position, prev_color);
+        }
+        Ok(())
+    }
+
     fn render_lines(&mut self, points: &[Vertex]) -> Result {
+        let mut color_prev = Color::WHITE;
         for [v0, v1] in points.array_windows::<2>() {
-            let color = Color::color_from_normalized(
-                [v0.color, v1.color]
-                    .iter()
-                    .flatten()
-                    .map(Color::color_normalize)
-                    .map(Vector4::from)
-                    .sum::<Vector4>()
-                    .into(),
-            );
-            self.draw_line_v(v0.position, v1.position, color);
+            if let Some(color) = v0.color {
+                color_prev = color;
+            }
+            let color0 = color_prev;
+            if let Some(color) = v1.color {
+                color_prev = color;
+            }
+            let color1 = color_prev;
+            self.draw_line_v(v0.position, v1.position, color0.lerp(color1, 0.5));
         }
         Ok(())
     }
@@ -179,6 +197,17 @@ impl Render for AsciiCanvas {
 }
 
 impl Render for Image {
+    fn render_pixels(&mut self, points: &[Vertex]) -> Result {
+        let mut prev_color = Color::BLACK;
+        for v in points {
+            if let Some(color) = v.color {
+                prev_color = color;
+            }
+            self.draw_pixel_v(v.position, prev_color);
+        }
+        Ok(())
+    }
+
     fn render_lines(&mut self, points: &[Vertex]) -> Result {
         for [v0, v1] in points.array_windows::<2>() {
             let color = Color::color_from_normalized(
@@ -239,6 +268,20 @@ pub struct RaylibRender(());
 
 #[allow(clippy::multiple_unsafe_ops_per_block)]
 impl Render for RaylibRender {
+    fn render_pixels(&mut self, points: &[Vertex]) -> Result {
+        let mut prev_color = Color::BLACK;
+        for point in points {
+            if let Some(color) = point.color {
+                prev_color = color;
+            }
+            // SAFETY: guaranteed by RaylibDraw
+            unsafe {
+                ffi::DrawPixelV(point.position.into(), prev_color);
+            }
+        }
+        Ok(())
+    }
+
     fn render_lines(&mut self, points: &[Vertex]) -> Result {
         // SAFETY: guaranteed by RaylibDraw
         unsafe {
@@ -324,6 +367,10 @@ macro_rules! impl_rl_render {
     ($(impl$(($($gen:tt)*))? Render for $D:ty {})*) => {
         $(
         impl$(<$($gen)*>)? Render for $D {
+            fn render_pixels(&mut self, points: &[Vertex]) -> Result {
+                RaylibRender(()).render_pixels(points)
+            }
+
             fn render_lines(&mut self, points: &[Vertex]) -> Result {
                 RaylibRender(()).render_lines(points)
             }
@@ -644,6 +691,10 @@ impl Renderer<'_> {
 }
 
 impl Render for Renderer<'_> {
+    fn render_pixels(&mut self, p: &[Vertex]) -> Result {
+        self.buf.render_pixels(p)
+    }
+
     fn render_lines(&mut self, p: &[Vertex]) -> Result {
         self.buf.render_lines(p)
     }
@@ -745,7 +796,11 @@ impl Draw for Texture2D {
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::{
+        ascii_canvas::AsciiCanvasing,
+        draw2d::{DebugVis, Draw, Vertex},
+        prelude::*,
+    };
     use raylib::prelude::*;
 
     #[repr(transparent)]
@@ -767,7 +822,7 @@ mod tests {
         const W: Color = Color::WHITE;
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let mut buf = Image::gen_image_color(5, 5, Color::BLACK);
-        render!(&mut buf, Vector2::new(3.0, 2.0)).unwrap();
+        render!(&mut buf, {}, Vector2::new(3.0, 2.0)).unwrap();
         let colors = buf.get_image_data();
         for (row, expect) in colors.chunks(5).zip([
             [B, B, B, B, B],
@@ -786,5 +841,57 @@ mod tests {
                 unsafe { &*(std::ptr::from_ref(row) as *const [ColorAsHex]) },
             );
         }
+    }
+
+    #[test]
+    fn test1() {
+        struct Foo {
+            center: Vector2,
+            radius: f32,
+            color: Color,
+        }
+
+        impl DebugVis for Foo {
+            fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
+                d.render_lines(&[
+                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius)
+                        .with_color(Color::MAGENTA),
+                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(0.0, 1.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius),
+                ])
+            }
+        }
+
+        impl Draw for Foo {
+            fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
+                d.render_triangles(&[
+                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius)
+                        .with_color(self.color),
+                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(0.0, 1.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(0.0, 1.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius),
+                ])
+            }
+        }
+
+        let mut canvas = AsciiCanvasing::new_filled(16, 16, Color::BLACK);
+        let data = Foo {
+            center: Vector2::new(6.0, 6.0),
+            radius: 5.0,
+            color: Color::GREEN,
+        };
+
+        render!(canvas.as_mut(), { data }).unwrap();
+        println!("{canvas}");
+        canvas.clear_background(Color::BLACK);
+        render!(canvas.as_mut(), {data:?}).unwrap();
+        println!("{canvas}");
     }
 }

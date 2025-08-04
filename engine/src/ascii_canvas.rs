@@ -361,12 +361,21 @@ impl AsciiCanvas {
             unsafe { str::from_utf8_unchecked(row) })
     }
 
+    pub fn clear_background(&mut self, fill_color: Color) {
+        self.data_slice_mut().fill(Self::color_to_value(fill_color));
+    }
+
     pub fn draw_pixel(&mut self, x: i32, y: i32, color: Color) {
         if let (Ok(x), Ok(y)) = (x.try_into(), y.try_into())
             && let Some(pixel) = self.get_mut(x, y)
         {
             *pixel = Self::color_to_value(color);
         }
+    }
+
+    pub fn draw_pixel_v(&mut self, pos: Vector2, color: Color) {
+        #![allow(clippy::cast_possible_truncation)]
+        self.draw_pixel((pos.x + 0.5) as i32, (pos.y + 0.5) as i32, color);
     }
 
     pub fn draw_line(
