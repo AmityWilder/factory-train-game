@@ -17,41 +17,11 @@ pub struct Error;
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Vertex {
     pub position: Vector2,
-    pub color: Option<Color>,
-}
-
-impl Vertex {
-    #[inline]
-    #[must_use]
-    pub const fn new_xy(x: f32, y: f32) -> Self {
-        Self::new(Vector2::new(x, y))
-    }
-
-    #[must_use]
-    pub const fn new(position: Vector2) -> Self {
-        Self {
-            position,
-            color: None,
-        }
-    }
-
-    #[must_use]
-    pub const fn with_color(self, color: Color) -> Self {
-        Self {
-            position: self.position,
-            color: Some(color),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct TexVertex {
-    pub position: Vector2,
     pub texcoords: Vector2,
     pub color: Option<Color>,
 }
 
-impl TexVertex {
+impl Vertex {
     #[inline]
     #[must_use]
     pub const fn new_xy(x: f32, y: f32) -> Self {
@@ -92,11 +62,146 @@ impl TexVertex {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OutOfBoundsError(usize);
+
+impl std::fmt::Display for OutOfBoundsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "index out of bounds. value: {}", self.0)
+    }
+}
+
+impl std::error::Error for OutOfBoundsError {}
+
+#[derive(Debug, Clone)]
+pub struct Shape {
+    vertices: Vec<Vertex>,
+    /// Indices into `vertices`
+    indices: Vec<usize>,
+    texture_id: Option<NonZeroU32>,
+}
+
+impl Default for Shape {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shape {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+            texture_id: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_capacity(vertex_capacity: usize, index_capacity: usize) -> Self {
+        Self {
+            vertices: Vec::with_capacity(vertex_capacity),
+            indices: Vec::with_capacity(index_capacity),
+            texture_id: None,
+        }
+    }
+
+    #[inline]
+    pub fn with_texture(&mut self, texture_id: Option<NonZeroU32>) -> &mut Self {
+        self.texture_id = texture_id;
+        self
+    }
+
+    #[inline]
+    pub fn with_vertices<T: IntoIterator<Item = Vertex>>(&mut self, verts: T) -> &mut Self {
+        self.extend(verts);
+        self
+    }
+
+    /// Stops and returns [`OutOfBoundsError`] when an out of bounds index is encountered
+    #[inline]
+    pub fn with_indices<T: IntoIterator<Item = usize>>(
+        &mut self,
+        indices: T,
+    ) -> std::result::Result<&mut Self, OutOfBoundsError> {
+        let verts_len = self.vertices.len();
+        let mut err = Ok(());
+        self.indices.extend(indices.into_iter().map_while(|x| {
+            if x < verts_len {
+                Some(x)
+            } else {
+                err = Err(OutOfBoundsError(x));
+                None
+            }
+        }));
+        err.map(|()| self)
+    }
+
+    pub fn clear(&mut self) {
+        self.vertices.clear();
+        self.indices.clear();
+    }
+
+    pub fn clear_indices(&mut self) {
+        self.indices.clear();
+    }
+
+    /// Also removes any indices referencing the vertex
+    pub fn retain_vertices<F: FnMut(&Vertex) -> bool>(&mut self, mut f: F) {
+        let mut position = 0;
+        let (vertices, indices) = (&mut self.vertices, &mut self.indices);
+        vertices.retain(|v| {
+            let result = f(v);
+            if !result {
+                indices.retain(|&idx| idx != position);
+            }
+            position += 1;
+            result
+        });
+    }
+
+    /// Also removes any indices referencing the vertex
+    pub fn remove_vertex(&mut self, position: usize) {
+        self.vertices.remove(position);
+        self.indices.retain(|&idx| idx != position);
+    }
+
+    pub fn remove_index(&mut self, position: usize) {
+        self.indices.remove(position);
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn vertices(&self) -> &[Vertex] {
+        self.vertices.as_slice()
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn vertices_mut(&mut self) -> &mut [Vertex] {
+        self.vertices.as_mut_slice()
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn indices(&self) -> &[usize] {
+        self.indices.as_slice()
+    }
+}
+
+impl Extend<Vertex> for Shape {
+    #[inline]
+    fn extend<T: IntoIterator<Item = Vertex>>(&mut self, iter: T) {
+        self.vertices.extend(iter);
+    }
+}
+
 pub trait Render {
     fn render_pixels(&mut self, points: &[Vertex]) -> Result;
     fn render_lines(&mut self, points: &[Vertex]) -> Result;
     fn render_triangles(&mut self, points: &[Vertex]) -> Result;
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result;
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result;
 
     /// Glue for usage of the [`write!`] macro with implementors of this trait.
     ///
@@ -140,7 +245,7 @@ impl<R: ?Sized + Render> Render for &mut R {
         (**self).render_triangles(points)
     }
 
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result {
         (**self).render_quads(texture_id, points)
     }
 
@@ -193,7 +298,7 @@ impl Render for AsciiCanvas {
         Ok(())
     }
 
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result {
         let mut prev_color = Color::WHITE;
         if texture_id.is_none() {
             for verts in points.array_chunks::<4>() {
@@ -265,7 +370,7 @@ impl Render for Image {
         Ok(())
     }
 
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result {
         let mut prev_color = Color::WHITE;
         if texture_id.is_none() {
             for verts in points.array_chunks::<4>() {
@@ -322,6 +427,7 @@ impl Render for RaylibRender {
             for point in points {
                 let &Vertex {
                     position: Vector2 { x, y },
+                    texcoords: _,
                     color,
                 } = point;
                 if let Some(Color { r, g, b, a }) = color {
@@ -343,6 +449,7 @@ impl Render for RaylibRender {
             for point in points {
                 let &Vertex {
                     position: Vector2 { x, y },
+                    texcoords: _,
                     color,
                 } = point;
                 if let Some(Color { r, g, b, a }) = color {
@@ -355,7 +462,7 @@ impl Render for RaylibRender {
         Ok(())
     }
 
-    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result {
         // SAFETY: guaranteed by RaylibDraw
         unsafe {
             ffi::rlSetTexture(
@@ -365,7 +472,7 @@ impl Render for RaylibRender {
             ffi::rlBegin(ffi::RL_QUADS as i32);
             ffi::rlNormal3f(0.0, 0.0, 1.0);
             for point in points {
-                let &TexVertex {
+                let &Vertex {
                     position: Vector2 { x, y },
                     texcoords: Vector2 { x: u, y: v },
                     color,
@@ -413,7 +520,7 @@ macro_rules! impl_rl_render {
             fn render_quads(
                 &mut self,
                 texture_id: Option<NonZeroU32>,
-                points: &[TexVertex],
+                points: &[Vertex],
             ) -> Result {
                 RaylibRender(()).render_quads(texture_id, points)
             }
@@ -684,7 +791,7 @@ impl Renderer<'_> {
     /// Renders some data to the underlying buffer contained within this renderer.
     ///
     /// Provide `points` in counter-clockwise order.
-    pub fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+    pub fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result {
         self.buf.render_quads(texture_id, points)
     }
 
@@ -739,7 +846,7 @@ impl Render for Renderer<'_> {
         self.buf.render_triangles(p)
     }
 
-    fn render_quads(&mut self, id: Option<NonZeroU32>, p: &[TexVertex]) -> Result {
+    fn render_quads(&mut self, id: Option<NonZeroU32>, p: &[Vertex]) -> Result {
         self.buf.render_quads(id, p)
     }
 
@@ -788,7 +895,7 @@ impl Draw for Vertex {
             Vector2::new(1.0, 1.0),
             Vector2::new(1.0, 0.0),
         ]
-        .map(|p| TexVertex::new(self.position + p + d.translation()));
+        .map(|p| Vertex::new(self.position + p + d.translation()));
 
         d.render_quads(
             None,
@@ -799,6 +906,13 @@ impl Draw for Vertex {
                 p3.with_texcoords_uv(1.0, 0.0),
             ],
         )
+    }
+}
+
+impl Draw for Shape {
+    fn draw(&self, d: &mut Renderer<'_>) -> Result {
+        // d.render_shape(self)
+        todo!()
     }
 }
 
@@ -819,7 +933,7 @@ impl Draw for Texture2D {
             Vector2::new(width, height),
             Vector2::new(width, 0.0),
         ]
-        .map(|p| TexVertex::new(angle.rotate(p * d.scale()) + d.translation()));
+        .map(|p| Vertex::new(angle.rotate(p * d.scale()) + d.translation()));
         let points = [
             p0.with_texcoords_uv(0.0, 1.0).with_color(d.tint()),
             p1.with_texcoords_uv(0.0, 0.0),
@@ -836,7 +950,7 @@ mod tests {
 
     use crate::{
         ascii_canvas::AsciiCanvasing,
-        draw2d::{DebugVis, Draw, TexVertex, Vertex},
+        draw2d::{DebugVis, Draw, Vertex},
         prelude::*,
     };
     use raylib::prelude::*;
@@ -930,10 +1044,10 @@ mod tests {
                 d.render_quads(
                     None,
                     &[
-                        TexVertex::new(self.corner).with_color(self.color),
-                        TexVertex::new(self.corner + Vector2::new(0.0, self.size)),
-                        TexVertex::new(self.corner + Vector2::new(self.size, self.size)),
-                        TexVertex::new(self.corner + Vector2::new(self.size, 0.0)),
+                        Vertex::new(self.corner).with_color(self.color),
+                        Vertex::new(self.corner + Vector2::new(0.0, self.size)),
+                        Vertex::new(self.corner + Vector2::new(self.size, self.size)),
+                        Vertex::new(self.corner + Vector2::new(self.size, 0.0)),
                     ],
                 )
             }
