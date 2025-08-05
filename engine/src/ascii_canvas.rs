@@ -265,9 +265,10 @@ impl AsciiCanvas {
 
     const fn color_to_value(color: Color) -> u8 {
         Self::value(
-            0.299 * color.r as f32 / 255.0
+            (0.299 * color.r as f32 / 255.0
                 + 0.587 * color.g as f32 / 255.0
-                + 0.114 * color.b as f32 / 255.0,
+                + 0.114 * color.b as f32 / 255.0)
+                * (color.a as f32 / 255.0),
         )
     }
 

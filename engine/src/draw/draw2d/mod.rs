@@ -7,7 +7,7 @@ use std::{marker::PhantomData, num::NonZeroU32};
 mod builders;
 mod rt;
 
-pub use builders::DebugStructure;
+pub use builders::DebugVisNode;
 
 pub type Result = std::result::Result<(), Error>;
 
@@ -23,12 +23,12 @@ pub struct Vertex {
 impl Vertex {
     #[inline]
     #[must_use]
-    pub const fn new(x: f32, y: f32) -> Self {
-        Self::new_v(Vector2::new(x, y))
+    pub const fn new_xy(x: f32, y: f32) -> Self {
+        Self::new(Vector2::new(x, y))
     }
 
     #[must_use]
-    pub const fn new_v(position: Vector2) -> Self {
+    pub const fn new(position: Vector2) -> Self {
         Self {
             position,
             color: None,
@@ -149,56 +149,83 @@ impl<R: ?Sized + Render> Render for &mut R {
     }
 }
 
+const fn update_and_unwrap(new_color: Option<Color>, prev_color: &mut Color) -> Color {
+    if let Some(color) = new_color {
+        *prev_color = color;
+    }
+    *prev_color
+}
+
 impl Render for AsciiCanvas {
     fn render_pixels(&mut self, points: &[Vertex]) -> Result {
         let mut prev_color = Color::BLACK;
         for v in points {
-            if let Some(color) = v.color {
-                prev_color = color;
-            }
-            self.draw_pixel_v(v.position, prev_color);
+            self.draw_pixel_v(v.position, update_and_unwrap(v.color, &mut prev_color));
         }
         Ok(())
     }
 
     fn render_lines(&mut self, points: &[Vertex]) -> Result {
-        let mut color_prev = Color::WHITE;
-        for [v0, v1] in points.array_windows::<2>() {
-            if let Some(color) = v0.color {
-                color_prev = color;
-            }
-            let color0 = color_prev;
-            if let Some(color) = v1.color {
-                color_prev = color;
-            }
-            let color1 = color_prev;
-            self.draw_line_v(v0.position, v1.position, color0.lerp(color1, 0.5));
+        let mut prev_color = Color::WHITE;
+        for verts in points.array_windows::<2>() {
+            let colors = verts.map(|v| update_and_unwrap(v.color, &mut prev_color));
+            self.draw_line_v(
+                verts[0].position,
+                verts[1].position,
+                colors[0].lerp(colors[1], 0.5),
+            );
         }
         Ok(())
     }
 
     fn render_triangles(&mut self, points: &[Vertex]) -> Result {
-        let mut last_color = Color::WHITE;
-        for [v0, v1, v2] in points.array_chunks::<3>() {
-            let [c0, c1, c2] = [v0.color, v1.color, v2.color].map(|c| {
-                if let Some(c) = c {
-                    last_color = c;
-                }
-                last_color
-            });
-            self.draw_triangle_ex(v0.position, v1.position, v2.position, c0, c1, c2);
+        let mut prev_color = Color::WHITE;
+        for verts in points.array_chunks::<3>() {
+            self.draw_triangle_ex(
+                verts[0].position,
+                verts[1].position,
+                verts[2].position,
+                update_and_unwrap(verts[0].color, &mut prev_color),
+                update_and_unwrap(verts[1].color, &mut prev_color),
+                update_and_unwrap(verts[2].color, &mut prev_color),
+            );
         }
         Ok(())
     }
 
-    fn render_quads(&mut self, _texture_id: Option<NonZeroU32>, _points: &[TexVertex]) -> Result {
-        todo!()
+    fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        let mut prev_color = Color::WHITE;
+        if texture_id.is_none() {
+            for verts in points.array_chunks::<4>() {
+                self.draw_triangle_ex(
+                    verts[0].position,
+                    verts[1].position,
+                    verts[2].position,
+                    update_and_unwrap(verts[0].color, &mut prev_color),
+                    update_and_unwrap(verts[1].color, &mut prev_color),
+                    update_and_unwrap(verts[2].color, &mut prev_color),
+                );
+                self.draw_triangle_ex(
+                    verts[2].position,
+                    verts[0].position,
+                    verts[3].position,
+                    update_and_unwrap(verts[2].color, &mut prev_color),
+                    update_and_unwrap(verts[0].color, &mut prev_color),
+                    update_and_unwrap(verts[3].color, &mut prev_color),
+                );
+            }
+            Ok(())
+        } else {
+            // applying texture to Image not implemented
+            // TODO: consider ffi::ImageDraw
+            Err(Error)
+        }
     }
 }
 
 impl Render for Image {
     fn render_pixels(&mut self, points: &[Vertex]) -> Result {
-        let mut prev_color = Color::BLACK;
+        let mut prev_color = Color::WHITE;
         for v in points {
             if let Some(color) = v.color {
                 prev_color = color;
@@ -239,20 +266,24 @@ impl Render for Image {
     }
 
     fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[TexVertex]) -> Result {
+        let mut prev_color = Color::WHITE;
         if texture_id.is_none() {
-            for [v0, v1, v2, v3] in points.array_chunks::<4>() {
-                let color = Color::color_from_normalized(
-                    [v0.color, v1.color, v2.color, v3.color]
-                        .iter()
-                        .flatten()
-                        .map(Color::color_normalize)
-                        .map(Vector4::from)
-                        .sum::<Vector4>()
-                        .into(),
+            for verts in points.array_chunks::<4>() {
+                self.draw_triangle_ex(
+                    verts[0].position,
+                    verts[1].position,
+                    verts[2].position,
+                    update_and_unwrap(verts[0].color, &mut prev_color),
+                    update_and_unwrap(verts[1].color, &mut prev_color),
+                    update_and_unwrap(verts[2].color, &mut prev_color),
                 );
-                self.draw_triangle_strip(
-                    &mut [v0.position, v1.position, v2.position, v3.position],
-                    color,
+                self.draw_triangle_ex(
+                    verts[2].position,
+                    verts[0].position,
+                    verts[3].position,
+                    update_and_unwrap(verts[2].color, &mut prev_color),
+                    update_and_unwrap(verts[0].color, &mut prev_color),
+                    update_and_unwrap(verts[3].color, &mut prev_color),
                 );
             }
             Ok(())
@@ -537,6 +568,11 @@ impl<'a> Renderer<'a> {
             buf: self.buf,
         }
     }
+
+    #[inline]
+    pub const fn debug_vis_node<'b>(&'b mut self) -> DebugVisNode<'b, 'a> {
+        builders::debug_vis_node_new(self)
+    }
 }
 
 /// This structure represents a safely precompiled version of a render string
@@ -768,7 +804,7 @@ impl Draw for Vertex {
 
 impl Draw for Vector2 {
     fn draw(&self, d: &mut Renderer<'_>) -> Result {
-        Vertex::new_v(*self).draw(d)
+        Vertex::new(*self).draw(d)
     }
 }
 
@@ -796,9 +832,11 @@ impl Draw for Texture2D {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::ManuallyDrop;
+
     use crate::{
         ascii_canvas::AsciiCanvasing,
-        draw2d::{DebugVis, Draw, Vertex},
+        draw2d::{DebugVis, Draw, TexVertex, Vertex},
         prelude::*,
     };
     use raylib::prelude::*;
@@ -844,7 +882,7 @@ mod tests {
     }
 
     #[test]
-    fn test1() {
+    fn test_debug_vis() {
         struct Foo {
             center: Vector2,
             radius: f32,
@@ -854,12 +892,12 @@ mod tests {
         impl DebugVis for Foo {
             fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
                 d.render_lines(&[
-                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius)
+                    Vertex::new(self.center + Vector2::new(0.0, -1.0) * self.radius)
                         .with_color(Color::MAGENTA),
-                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(0.0, 1.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(0.0, 1.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(0.0, -1.0) * self.radius),
                 ])
             }
         }
@@ -867,31 +905,123 @@ mod tests {
         impl Draw for Foo {
             fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
                 d.render_triangles(&[
-                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius)
+                    Vertex::new(self.center + Vector2::new(0.0, -1.0) * self.radius)
                         .with_color(self.color),
-                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(0.0, 1.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(0.0, 1.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(-1.0, 0.0) * self.radius),
-                    Vertex::new_v(self.center + Vector2::new(0.0, -1.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(0.0, 1.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(0.0, 1.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(-1.0, 0.0) * self.radius),
+                    Vertex::new(self.center + Vector2::new(0.0, -1.0) * self.radius),
                 ])
             }
         }
 
+        struct Bar {
+            corner: Vector2,
+            size: f32,
+            color: Color,
+        }
+
+        impl Draw for Bar {
+            fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
+                d.render_quads(
+                    None,
+                    &[
+                        TexVertex::new(self.corner).with_color(self.color),
+                        TexVertex::new(self.corner + Vector2::new(0.0, self.size)),
+                        TexVertex::new(self.corner + Vector2::new(self.size, self.size)),
+                        TexVertex::new(self.corner + Vector2::new(self.size, 0.0)),
+                    ],
+                )
+            }
+        }
+
+        impl DebugVis for Bar {
+            fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
+                d.render_lines(&[
+                    Vertex::new(self.corner).with_color(Color::ORANGE),
+                    Vertex::new(self.corner + Vector2::new(0.0, self.size)),
+                    Vertex::new(self.corner + Vector2::new(self.size, self.size)),
+                    Vertex::new(self.corner + Vector2::new(self.size, 0.0)),
+                    Vertex::new(self.corner),
+                ])
+            }
+        }
+
+        struct FooBar(Foo, Bar);
+
+        impl DebugVis for FooBar {
+            fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
+                d.debug_vis_node().child(&self.0).child(&self.1).finish()
+            }
+        }
+
+        impl Draw for FooBar {
+            fn draw(&self, d: &mut super::Renderer<'_>) -> super::Result {
+                Draw::draw(&self.0, d).and_then(|()| Draw::draw(&self.1, d))
+            }
+        }
+
         let mut canvas = AsciiCanvasing::new_filled(16, 16, Color::BLACK);
-        let data = Foo {
-            center: Vector2::new(6.0, 6.0),
-            radius: 5.0,
-            color: Color::GREEN,
-        };
+
+        let data = FooBar(
+            Foo {
+                center: Vector2::new(6.0, 6.0),
+                radius: 5.0,
+                color: Color::GREEN,
+            },
+            Bar {
+                corner: Vector2::new(7.0, 4.0),
+                size: 5.0,
+                color: Color::YELLOW,
+            },
+        );
 
         render!(canvas.as_mut(), { data }).unwrap();
         println!("{canvas}");
         canvas.clear_background(Color::BLACK);
         render!(canvas.as_mut(), {data:?}).unwrap();
         println!("{canvas}");
+    }
+
+    #[test]
+    fn test2() {
+        #[rustfmt::skip]
+        const MASK_DATA: &[u8; 16*16] = &[
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+            0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
+        ];
+        // SAFETY: The memory is on the stack and will not be double-freed thanks to ManuallyDrop
+        let mask = ManuallyDrop::new(unsafe {
+            Image::from_raw(ffi::Image {
+                data: MASK_DATA.as_ptr().cast_mut().cast(),
+                width: 16,
+                height: 16,
+                mipmaps: 1,
+                format: ffi::PixelFormat::PIXELFORMAT_UNCOMPRESSED_GRAYSCALE as i32,
+            })
+        });
+        assert_eq!(mask.get_pixel_data_size(), 16 * 16);
+        let mut image = Image::gen_image_gradient_linear(16, 16, 0, Color::GRAY, Color::WHITE);
+        image.alpha_mask(&mask);
+        let canvas = AsciiCanvasing::from_image(&image).unwrap();
+        print!("{canvas}");
     }
 }

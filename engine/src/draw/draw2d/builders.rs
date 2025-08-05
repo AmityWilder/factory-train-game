@@ -1,11 +1,11 @@
 use crate::draw2d::{DebugVis, Renderer, Result};
 
-pub struct DebugStructure<'a, 'b: 'a> {
+pub struct DebugVisNode<'a, 'b: 'a> {
     renderer: &'a mut Renderer<'b>,
     result: Result,
 }
 
-impl<'a, 'b: 'a> DebugStructure<'a, 'b> {
+impl<'a, 'b: 'a> DebugVisNode<'a, 'b> {
     pub fn child(&mut self, value: &dyn DebugVis) -> &mut Self {
         self.child_with(|f| value.draw(f))
     }
@@ -20,5 +20,14 @@ impl<'a, 'b: 'a> DebugStructure<'a, 'b> {
 
     pub const fn finish(&mut self) -> Result {
         self.result
+    }
+}
+
+pub(super) const fn debug_vis_node_new<'a, 'b: 'a>(
+    renderer: &'a mut Renderer<'b>,
+) -> DebugVisNode<'a, 'b> {
+    DebugVisNode {
+        renderer,
+        result: Ok(()),
     }
 }
