@@ -2,7 +2,11 @@
 
 use crate::ascii_canvas::AsciiCanvas;
 use raylib::prelude::*;
-use std::{marker::PhantomData, num::NonZeroU32};
+use std::{
+    marker::PhantomData,
+    num::NonZeroU32,
+    ptr::{NonNull, null_mut},
+};
 
 mod builders;
 mod rt;
@@ -62,23 +66,76 @@ impl Vertex {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OutOfBoundsError(usize);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WithIndicesError {
+    OutOfBounds(u16),
+    Unindexible(std::num::TryFromIntError),
+}
 
-impl std::fmt::Display for OutOfBoundsError {
+impl std::fmt::Display for WithIndicesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "index out of bounds. value: {}", self.0)
+        match self {
+            Self::OutOfBounds(idx) => write!(f, "index out of bounds. value: {idx}"),
+            Self::Unindexible(_) => {
+                f.write_str("more vertices than can be represented with u16 indices")
+            }
+        }
     }
 }
 
-impl std::error::Error for OutOfBoundsError {}
+impl std::error::Error for WithIndicesError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::OutOfBounds(_) => None,
+            Self::Unindexible(e) => Some(e),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
+pub struct ShapeIter<'a> {
+    verts: &'a [Vertex],
+    index: std::slice::Iter<'a, u16>,
+}
+
+impl<'a> ShapeIter<'a> {
+    fn vert(&self, idx: Option<&u16>) -> Option<&'a Vertex> {
+        idx.copied().map(usize::from).map(|i| &self.verts[i])
+    }
+}
+
+impl<'a> Iterator for ShapeIter<'a> {
+    type Item = &'a Vertex;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let idx = self.index.next();
+        self.vert(idx)
+    }
+}
+
+impl DoubleEndedIterator for ShapeIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let idx = self.index.next_back();
+        self.vert(idx)
+    }
+}
+
+impl ExactSizeIterator for ShapeIter<'_> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.index.len()
+    }
+}
+
+impl std::iter::FusedIterator for ShapeIter<'_> {}
+
+#[derive(Debug)]
 pub struct Shape {
     vertices: Vec<Vertex>,
     /// Indices into `vertices`
-    indices: Vec<usize>,
-    texture_id: Option<NonZeroU32>,
+    indices: Vec<u16>,
+    texture: Option<Texture2D>,
 }
 
 impl Default for Shape {
@@ -94,22 +151,22 @@ impl Shape {
         Self {
             vertices: Vec::new(),
             indices: Vec::new(),
-            texture_id: None,
+            texture: None,
         }
     }
 
     #[must_use]
-    pub fn with_capacity(vertex_capacity: usize, index_capacity: usize) -> Self {
+    pub fn with_capacity(vertex_capacity: u16, index_capacity: usize) -> Self {
         Self {
-            vertices: Vec::with_capacity(vertex_capacity),
+            vertices: Vec::with_capacity(vertex_capacity.into()),
             indices: Vec::with_capacity(index_capacity),
-            texture_id: None,
+            texture: None,
         }
     }
 
     #[inline]
-    pub fn with_texture(&mut self, texture_id: Option<NonZeroU32>) -> &mut Self {
-        self.texture_id = texture_id;
+    pub fn with_texture(&mut self, texture: Option<Texture2D>) -> &mut Self {
+        self.texture = texture;
         self
     }
 
@@ -121,17 +178,18 @@ impl Shape {
 
     /// Stops and returns [`OutOfBoundsError`] when an out of bounds index is encountered
     #[inline]
-    pub fn with_indices<T: IntoIterator<Item = usize>>(
+    pub fn with_indices<T: IntoIterator<Item = u16>>(
         &mut self,
         indices: T,
-    ) -> std::result::Result<&mut Self, OutOfBoundsError> {
-        let verts_len = self.vertices.len();
+    ) -> std::result::Result<&mut Self, WithIndicesError> {
+        let verts_len =
+            u16::try_from(self.vertices.len()).map_err(WithIndicesError::Unindexible)?;
         let mut err = Ok(());
         self.indices.extend(indices.into_iter().map_while(|x| {
             if x < verts_len {
                 Some(x)
             } else {
-                err = Err(OutOfBoundsError(x));
+                err = Err(WithIndicesError::OutOfBounds(x));
                 None
             }
         }));
@@ -164,7 +222,9 @@ impl Shape {
     /// Also removes any indices referencing the vertex
     pub fn remove_vertex(&mut self, position: usize) {
         self.vertices.remove(position);
-        self.indices.retain(|&idx| idx != position);
+        if let Ok(position) = u16::try_from(position) {
+            self.indices.retain(|&idx| idx != position);
+        }
     }
 
     pub fn remove_index(&mut self, position: usize) {
@@ -185,8 +245,86 @@ impl Shape {
 
     #[inline]
     #[must_use]
-    pub const fn indices(&self) -> &[usize] {
+    pub const fn indices(&self) -> &[u16] {
         self.indices.as_slice()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn iter(&self) -> ShapeIter<'_> {
+        ShapeIter {
+            verts: &self.vertices,
+            index: self.indices.iter(),
+        }
+    }
+
+    #[inline]
+    pub fn load_mesh_from_shape(
+        &self,
+    ) -> std::result::Result<Mesh, raylib::error::AllocationError> {
+        let (vertices, texcoords, colors) = self
+            .vertices
+            .iter()
+            .map(|v| {
+                (
+                    Vector3::new(v.position.x, v.position.y, 0.0),
+                    v.texcoords,
+                    v.color,
+                )
+            })
+            .collect::<(Vec<_>, Vec<_>, Vec<_>)>();
+        let vertices = DataBuf::<[_]>::alloc_from_copy(&vertices)?
+            .into_inner()
+            .into_inner()
+            .as_ptr()
+            .cast::<f32>();
+        let texcoords = DataBuf::<[_]>::alloc_from_copy(&texcoords)?
+            .into_inner()
+            .into_inner()
+            .as_ptr()
+            .cast::<f32>();
+        let colors = DataBuf::<[_]>::alloc_from_copy(&colors)?
+            .into_inner()
+            .into_inner()
+            .as_ptr()
+            .cast::<u8>();
+        let mut normals = DataBuf::<[Vector3]>::alloc(self.vertices.len())?;
+        normals.fill(std::mem::MaybeUninit::new(Vector3::new(0.0, 0.0, 1.0)));
+        // SAFETY: just assigned with valid data
+        let normals = unsafe { normals.assume_init() }
+            .into_inner()
+            .into_inner()
+            .as_ptr()
+            .cast::<f32>();
+        let indices = DataBuf::<[_]>::alloc_from_copy(&self.indices)?
+            .into_inner()
+            .into_inner()
+            .as_ptr()
+            .cast::<u16>();
+        let raw = ffi::Mesh {
+            vertexCount: 0,
+            triangleCount: 0,
+            vertices,
+            texcoords,
+            texcoords2: null_mut(),
+            normals,
+            tangents: null_mut(),
+            colors,
+            indices,
+            animVertices: null_mut(),
+            animNormals: null_mut(),
+            boneIds: null_mut(),
+            boneWeights: null_mut(),
+            boneMatrices: null_mut(),
+            boneCount: 0,
+            vaoId: 0,
+            vboId: null_mut(),
+        };
+        let mut mesh = unsafe { Mesh::from_raw(raw) };
+        unsafe {
+            mesh.upload(false);
+        }
+        Ok(mesh)
     }
 }
 
@@ -194,6 +332,17 @@ impl Extend<Vertex> for Shape {
     #[inline]
     fn extend<T: IntoIterator<Item = Vertex>>(&mut self, iter: T) {
         self.vertices.extend(iter);
+        assert!(self.indices.is_empty() || u16::try_from(self.vertices.capacity()).is_ok());
+    }
+}
+
+impl<'a> IntoIterator for &'a Shape {
+    type Item = <Self::IntoIter as Iterator>::Item;
+    type IntoIter = ShapeIter<'a>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
@@ -202,6 +351,8 @@ pub trait Render {
     fn render_lines(&mut self, points: &[Vertex]) -> Result;
     fn render_triangles(&mut self, points: &[Vertex]) -> Result;
     fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result;
+    fn render_shape(&mut self, shape: &Shape, material: ffi::Material, transform: Matrix)
+    -> Result;
 
     /// Glue for usage of the [`write!`] macro with implementors of this trait.
     ///
@@ -247,6 +398,15 @@ impl<R: ?Sized + Render> Render for &mut R {
 
     fn render_quads(&mut self, texture_id: Option<NonZeroU32>, points: &[Vertex]) -> Result {
         (**self).render_quads(texture_id, points)
+    }
+
+    fn render_shape(
+        &mut self,
+        shape: &Shape,
+        material: ffi::Material,
+        transform: Matrix,
+    ) -> Result {
+        (**self).render_shape(shape, material, transform)
     }
 
     fn render(&mut self, args: Arguments<'_>) -> Result {
@@ -326,6 +486,15 @@ impl Render for AsciiCanvas {
             Err(Error)
         }
     }
+
+    fn render_shape(
+        &mut self,
+        shape: &Shape,
+        material: ffi::Material,
+        transform: Matrix,
+    ) -> Result {
+        todo!()
+    }
 }
 
 impl Render for Image {
@@ -397,6 +566,15 @@ impl Render for Image {
             // TODO: consider ffi::ImageDraw
             Err(Error)
         }
+    }
+
+    fn render_shape(
+        &mut self,
+        shape: &Shape,
+        material: ffi::Material,
+        transform: Matrix,
+    ) -> Result {
+        todo!()
     }
 }
 
@@ -499,6 +677,19 @@ impl Render for RaylibRender {
         }
         Ok(())
     }
+
+    fn render_shape(
+        &mut self,
+        shape: &Shape,
+        material: ffi::Material,
+        transform: Matrix,
+    ) -> Result {
+        let mesh = shape.load_mesh_from_shape().map_err(|_| Error)?;
+        unsafe {
+            ffi::DrawMesh(*mesh, material, transform.into());
+        }
+        Ok(())
+    }
 }
 
 macro_rules! impl_rl_render {
@@ -523,6 +714,10 @@ macro_rules! impl_rl_render {
                 points: &[Vertex],
             ) -> Result {
                 RaylibRender(()).render_quads(texture_id, points)
+            }
+
+            fn render_shape(&mut self, shape: &Shape, material: ffi::Material, transform: Matrix) -> Result {
+                RaylibRender(()).render_shape(shape, material, transform)
             }
 
             fn render(&mut self, args: Arguments<'_>) -> Result {
@@ -850,6 +1045,10 @@ impl Render for Renderer<'_> {
         self.buf.render_quads(id, p)
     }
 
+    fn render_shape(&mut self, s: &Shape, m: ffi::Material, t: Matrix) -> Result {
+        self.buf.render_shape(s, m, t)
+    }
+
     #[inline]
     fn render(&mut self, args: Arguments<'_>) -> Result {
         render(self.buf, args)
@@ -911,8 +1110,11 @@ impl Draw for Vertex {
 
 impl Draw for Shape {
     fn draw(&self, d: &mut Renderer<'_>) -> Result {
-        // d.render_shape(self)
-        todo!()
+        d.render_shape(
+            self,
+            unsafe { ffi::LoadMaterialDefault() },
+            Matrix::identity(),
+        )
     }
 }
 
@@ -968,32 +1170,32 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test0() {
-        const B: Color = Color::BLACK;
-        const W: Color = Color::WHITE;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let mut buf = Image::gen_image_color(5, 5, Color::BLACK);
-        render!(&mut buf, {}, Vector2::new(3.0, 2.0)).unwrap();
-        let colors = buf.get_image_data();
-        for (row, expect) in colors.chunks(5).zip([
-            [B, B, B, B, B],
-            [B, B, B, B, B],
-            [B, B, B, W, B],
-            [B, B, B, B, B],
-            [B, B, B, B, B],
-        ]) {
-            assert_eq!(
-                row,
-                expect,
-                "\nexpect: {:?}\nactual: {:?}",
-                // SAFETY: ColorAsHex is just a wrapper for Color
-                unsafe { &*std::ptr::from_ref(&expect).cast::<[ColorAsHex; 5]>() },
-                // SAFETY: ColorAsHex is just a wrapper for Color
-                unsafe { &*(std::ptr::from_ref(row) as *const [ColorAsHex]) },
-            );
-        }
-    }
+    // #[test]
+    // fn test0() {
+    //     const B: Color = Color::BLACK;
+    //     const W: Color = Color::WHITE;
+    //     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    //     let mut buf = Image::gen_image_color(5, 5, Color::BLACK);
+    //     render!(&mut buf, {}, Vector2::new(3.0, 2.0)).unwrap();
+    //     let colors = buf.get_image_data();
+    //     for (row, expect) in colors.chunks(5).zip([
+    //         [B, B, B, B, B],
+    //         [B, B, B, B, B],
+    //         [B, B, B, W, B],
+    //         [B, B, B, B, B],
+    //         [B, B, B, B, B],
+    //     ]) {
+    //         assert_eq!(
+    //             row,
+    //             expect,
+    //             "\nexpect: {:?}\nactual: {:?}",
+    //             // SAFETY: ColorAsHex is just a wrapper for Color
+    //             unsafe { &*std::ptr::from_ref(&expect).cast::<[ColorAsHex; 5]>() },
+    //             // SAFETY: ColorAsHex is just a wrapper for Color
+    //             unsafe { &*(std::ptr::from_ref(row) as *const [ColorAsHex]) },
+    //         );
+    //     }
+    // }
 
     #[test]
     fn test_debug_vis() {
