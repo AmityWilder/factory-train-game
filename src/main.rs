@@ -37,6 +37,7 @@ mod resource;
 mod rl_helpers;
 mod rlights;
 
+use chemic;
 use std::time::Instant;
 
 use crate::{
@@ -222,12 +223,9 @@ fn main() {
                 },
                 Color::ORANGE,
             );
-            current_region.to_region(&factories, &lab, &world).draw(
-                &mut d,
-                &thread,
-                &resources,
-                &player,
-            );
+            current_region
+                .to_region(&factories, &lab, &world)
+                .draw(&mut d, &thread, &resources, &player);
         }
 
         d.draw_fps(0, 0);
