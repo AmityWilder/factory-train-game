@@ -254,8 +254,76 @@ define_measurements! {
     }
 
     pub Density(grams_per_cubic_meter (g_m3) unit_scales) {}
+
+    pub Speed(meters_per_sec (m_s)) {}
 }
+
+pub use Length as Distance;
 
 unit_ops!(Length * Self => Area);
 unit_ops!(Area * Length => Volume);
 unit_ops!(Mass / Volume => Density);
+unit_ops!(Distance / Time => Speed);
+
+#[doc(hidden)]
+#[track_caller]
+pub fn assert_near_eq_failed_inner(
+    left: &dyn std::fmt::Debug,
+    right: &dyn std::fmt::Debug,
+    epsilon: &dyn std::fmt::Debug,
+    args: Option<std::fmt::Arguments<'_>>,
+) -> ! {
+    match args {
+        Some(args) => panic!(
+            r#"assertion `left == right within epsilon` failed: {args}
+    left: {left:?}
+   right: {right:?}
+ epsilon: {epsilon:?}"#
+        ),
+        None => panic!(
+            r#"assertion `left == right within epsilon` failed
+    left: {left:?}
+   right: {right:?}
+ epsilon: {epsilon:?}"#
+        ),
+    }
+}
+
+#[macro_export]
+macro_rules! assert_near_eq {
+    ($left:expr, $right:expr, $epsilon:expr $(,)?) => {
+        match (&$left, &$right, &$epsilon) {
+            (left_val, right_val, epsilon) => {
+                if ((*left_val - *right_val).abs() > *epsilon) {
+                    $crate::units::assert_near_eq_failed_inner(&*left_val, &*right_val, &*epsilon, None);
+                }
+            }
+        }
+    };
+    ($left:expr, $right:expr, $epsilon:expr, $($arg:tt)+) => {
+        match (&$left, &$right, &$epsilon) {
+            (left_val, right_val, epsilon) => {
+                if ((*left_val - *right_val).abs() > *epsilon) {
+                    $crate::units::assert_near_eq_failed_inner(&*left_val, &*right_val, &*epsilon, Some(format_args!($($arg)+)));
+                }
+            }
+        }
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test0() {
+        let x = Length::from_meters(10.0) / Time::from_seconds(10.0);
+        assert_eq!(x.to_meters_per_sec(), 1.0);
+
+        let x = Length::from_meters(3.0) * Length::from_meters(3.0) * Length::from_meters(3.0);
+        assert_eq!(x.to_meters_cubed(), 27.0);
+
+        let x = Length::from_centimeters(5.0);
+        assert_near_eq!(x.to_inches(), 1.968504, 0.000001);
+    }
+}
