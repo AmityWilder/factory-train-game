@@ -1,5 +1,6 @@
 #![doc = include_str!("matter-and-measurements.md")]
 #![allow(non_snake_case)]
+#![feature(const_trait_impl, auto_traits)]
 
 use std::num::NonZeroUsize;
 
