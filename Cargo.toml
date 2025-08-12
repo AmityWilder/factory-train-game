@@ -1,5 +1,5 @@
 [workspace]
-members = ["fixed_point", "engine"]
+members = ["fixed_point", "engine", "editor"]
 
 [package]
 name = "factory-train-game"
@@ -7,7 +7,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-raylib = { git = "https://github.com/lolbinarycat/raylib-rs", branch = "raylib-draw-dyn" }
+raylib = { git = "https://github.com/raylib-rs/raylib-rs", branch = "unstable", features = [
+    "raygui",
+] }
 engine = { path = "engine" }
 fixed_point = { path = "fixed_point" }
 arrayvec = "0.7.6"

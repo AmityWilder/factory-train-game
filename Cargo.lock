@@ -45,9 +45,9 @@ checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "cc"
-version = "1.2.30"
+version = "1.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deec109607ca693028562ed836a5f1c4b8bd77755c4e132fc5ce11b0b6211ae7"
+checksum = "2352e5597e9c544d5e6d9c95190d5d27738ade584fa8db0a16e130e5c2b5296e"
 dependencies = [
  "jobserver",
  "libc",
@@ -90,6 +90,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "editor"
+version = "0.1.0"
+dependencies = [
+ "raylib 5.7.0 (git+https://github.com/raylib-rs/raylib-rs?branch=unstable)",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -99,7 +106,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 name = "engine"
 version = "0.1.0"
 dependencies = [
- "raylib",
+ "raylib 5.7.0 (git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn)",
 ]
 
 [[package]]
@@ -109,7 +116,7 @@ dependencies = [
  "arrayvec",
  "engine",
  "fixed_point",
- "raylib",
+ "raylib 5.7.0 (git+https://github.com/raylib-rs/raylib-rs?branch=unstable)",
 ]
 
 [[package]]
@@ -133,18 +140,18 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.30.4"
+version = "0.30.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50a99dbe56b72736564cfa4b85bf9a33079f16ae8b74983ab06af3b1a3696b11"
+checksum = "f2d1aab06663bdce00d6ca5e5ed586ec8d18033a771906c993a1e3755b368d85"
 dependencies = [
  "mint",
 ]
 
 [[package]]
 name = "glob"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "itertools"
@@ -167,9 +174,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.174"
+version = "0.2.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
+checksum = "6a82ae493e598baaea5209805c49bbf2ea7de956d50d7da0da1164f9c6d28543"
 
 [[package]]
 name = "libloading"
@@ -233,9 +240,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.95"
+version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
+checksum = "d61789d7719defeb74ea5fe81f2fdfdbd28a803847077cecce2ff14e1472f6f1"
 dependencies = [
  "unicode-ident",
 ]
@@ -258,11 +265,23 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 [[package]]
 name = "raylib"
 version = "5.7.0"
-source = "git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn#8324826dddabad0c88c2efdf765955675cebcfd0"
+source = "git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn#93c9a951271a553cc95280d00fd5e1620dc567b2"
 dependencies = [
  "glam",
  "paste",
- "raylib-sys",
+ "raylib-sys 5.7.0 (git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn)",
+ "seq-macro",
+ "thiserror",
+]
+
+[[package]]
+name = "raylib"
+version = "5.7.0"
+source = "git+https://github.com/raylib-rs/raylib-rs?branch=unstable#9a57cb34fec63f0afe6b80f3ba8919502cf37126"
+dependencies = [
+ "glam",
+ "paste",
+ "raylib-sys 5.7.0 (git+https://github.com/raylib-rs/raylib-rs?branch=unstable)",
  "seq-macro",
  "thiserror",
 ]
@@ -270,7 +289,18 @@ dependencies = [
 [[package]]
 name = "raylib-sys"
 version = "5.7.0"
-source = "git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn#8324826dddabad0c88c2efdf765955675cebcfd0"
+source = "git+https://github.com/lolbinarycat/raylib-rs?branch=raylib-draw-dyn#93c9a951271a553cc95280d00fd5e1620dc567b2"
+dependencies = [
+ "bindgen",
+ "cc",
+ "cmake",
+ "mint",
+]
+
+[[package]]
+name = "raylib-sys"
+version = "5.7.0"
+source = "git+https://github.com/raylib-rs/raylib-rs?branch=unstable#9a57cb34fec63f0afe6b80f3ba8919502cf37126"
 dependencies = [
  "bindgen",
  "cc",
@@ -338,18 +368,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.12"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+checksum = "0b0949c3a6c842cbde3f1686d6eea5a010516deb7085f79db747562d4102f41e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.12"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
+checksum = "cc5b44b4ab9c2fdd0e0512e6bece8388e214c0749f5862b114cc5b7a25daf227"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -372,11 +402,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows-targets"
-version = "0.53.2"
+name = "windows-link"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c66f69fcc9ce11da9966ddb31a40968cad001c5bedeb5c2b82ede4253ab48aef"
+checksum = "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
+
+[[package]]
+name = "windows-targets"
+version = "0.53.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5fe6031c4041849d7c496a8ded650796e7b6ecc19df1a431c1a363342e5dc91"
 dependencies = [
+ "windows-link",
  "windows_aarch64_gnullvm",
  "windows_aarch64_msvc",
  "windows_i686_gnu",
