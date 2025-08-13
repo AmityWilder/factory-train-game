@@ -176,7 +176,9 @@ fn main() {
     let mut asset = Mesh::gen_mesh_cube(&thread, 1.0, 1.0, 1.0);
     let mut camera =
         Camera::perspective(Vector3::new(2.0, 2.0, 2.0), Vector3::ZERO, Vector3::Y, 45.0);
-    let material = rl.load_material_default(&thread);
+    let mut material = rl.load_material_default(&thread);
+    *material.maps_mut()[MaterialMapIndex::MATERIAL_MAP_ALBEDO as usize].color_mut() =
+        Color::LIGHTGRAY;
 
     while !rl.window_should_close() {
         let dt = rl.get_frame_time();
