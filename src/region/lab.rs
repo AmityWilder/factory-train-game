@@ -34,7 +34,7 @@ pub struct PeriodicTable {
 impl PeriodicTable {
     pub fn draw(
         &self,
-        d: &mut DynRaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         resources: &Resources,
         player: &Player,
@@ -57,8 +57,8 @@ impl PeriodicTable {
             // SAFETY: TBD
             let material = unsafe { WeakMaterial::from_raw(**material) };
             d.draw_mesh(
-                mesh,
-                material,
+                **mesh,
+                *material,
                 Matrix::scale(1.0, y_scale, 1.0)
                     * Matrix::translate(0.0, y_scale * 0.125, 0.0)
                     * translation
@@ -98,7 +98,7 @@ impl PlayerOverlap for Laboratory {
 impl Region for Laboratory {
     fn draw(
         &self,
-        d: &mut DynRaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,

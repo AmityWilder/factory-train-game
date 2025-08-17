@@ -1,4 +1,4 @@
-use crate::resource::Resources;
+use crate::{resource::Resources, rl_helpers::DynRaylibDraw3D};
 use raylib::prelude::*;
 use std::num::NonZeroU8;
 
@@ -13,7 +13,7 @@ pub enum Orbital {
 impl Orbital {
     pub fn draw(
         self,
-        d: &mut DynRaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         _thread: &RaylibThread,
         resources: &Resources,
         matrix: Matrix,
@@ -27,8 +27,8 @@ impl Orbital {
             Self::F => &resources.orbital_f,
         };
         d.draw_mesh(
-            &model.meshes()[0],
-            model.materials()[0].clone(),
+            *model.meshes()[0],
+            *model.materials()[0],
             Matrix::scale(scale, scale, scale) * matrix * (*model.transform()),
         );
     }

@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+const_format = "0.2.34"
 raylib = { git = "https://github.com/raylib-rs/raylib-rs", branch = "unstable", features = [
     "raygui",
 ] }
+strum = "0.27.2"
+strum_macros = "0.27.2"

@@ -5,7 +5,7 @@ use raylib::prelude::*;
 
 use super::{PlayerOverlap, Region};
 
-fn draw_skybox(_d: &mut DynRaylibDraw3D, _thread: &RaylibThread, resources: &Resources) {
+fn draw_skybox(_d: &mut dyn DynRaylibDraw3D, _thread: &RaylibThread, resources: &Resources) {
     #[allow(
         clippy::cast_possible_wrap,
         reason = "RL_QUADS is an i32 in Raylib, but bindgen made it a u32"
@@ -60,7 +60,7 @@ impl PlayerOverlap for World {
 impl Region for World {
     fn draw(
         &self,
-        d: &mut DynRaylibDraw3D,
+        d: &mut dyn DynRaylibDraw3D,
         thread: &RaylibThread,
         resources: &Resources,
         player: &Player,

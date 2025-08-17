@@ -1,92 +1,25 @@
-use raylib::{
-    math::glam::{EulerRot, Quat},
-    prelude::*,
-};
+#![feature(likely_unlikely, cold_path)]
+
+use raylib::{math::glam::Quat, prelude::*};
+use std::sync::OnceLock;
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter, IntoStaticStr};
 
 pub trait DropdownEnum:
-    'static + Sized + Copy + Eq + std::hash::Hash + Into<i32> + TryFrom<i32, Error: std::fmt::Debug>
+    'static + Sized + Copy + Eq + std::hash::Hash + IntoEnumIterator + Into<&'static str>
 {
-    const LIST: &[Self];
-    const DROPDOWN_LIST: &str;
-
     #[must_use]
-    fn as_str(self) -> &'static str;
-}
-
-macro_rules! concat_skip_first {
-    (";", $($token:tt)*) => {
-        concat!($($token)*)
-    };
-}
-
-macro_rules! variant_name {
-    ($Variant:ident = $vname:literal) => {
-        $vname
-    };
-
-    ($Variant:ident) => {
-        stringify!($Variant)
-    };
-}
-
-macro_rules! dropdown_enum {
-    (
-        $(#[$m:meta])*
-        $vis:vis enum $Enum:ident {
-            $(
-            $(#[$vm:meta])*
-            $Variant:ident$( = $vname:literal)?
-            ),* $(,)?
-        }
-    ) => {
-        $(#[$m])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        $vis enum $Enum {
-            $(
-            $(#[$vm])*
-            $Variant
-            ),*
-        }
-
-        impl std::fmt::Display for $Enum {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.as_str().fmt(f)
-            }
-        }
-
-        impl $Enum {
-            pub const LIST: [Self; [$(Self::$Variant),*].len()] = [$(Self::$Variant),*];
-        }
-
-        impl DropdownEnum for $Enum {
-            const LIST: &[Self] = &Self::LIST;
-            const DROPDOWN_LIST: &str = concat_skip_first!($(";", variant_name!($Variant$( = $vname)?)),*);
-
-            fn as_str(self) -> &'static str {
-                match self { $(Self::$Variant => variant_name!($Variant$( = $vname)?)),* }
-            }
-        }
-
-        impl TryFrom<i32> for $Enum {
-            type Error = ();
-
-            fn try_from(value: i32) -> Result<Self, Self::Error> {
-                #![allow(non_upper_case_globals)]
-                $(const $Variant: i32 = $Enum::$Variant as i32;)*
-                match value {
-                    $($Variant => std::result::Result::Ok(Self::$Variant),)*
-                    _ => std::result::Result::Err(()),
-                }
-            }
-        }
-
-        impl From<$Enum> for i32 {
-            #[inline]
-            fn from(value: $Enum) -> Self {
-                value as i32
-            }
-        }
-    };
+    fn dropdown_list() -> &'static str {
+        static DROPDOWN_LIST: OnceLock<String> = OnceLock::new();
+        DROPDOWN_LIST
+            .get_or_init(|| {
+                Self::iter()
+                    .map(<Self as Into<&'static str>>::into)
+                    .collect::<Vec<&str>>()
+                    .join(";")
+            })
+            .as_str()
+    }
 }
 
 #[derive(Debug)]
@@ -108,9 +41,8 @@ impl<T: DropdownEnum> Dropdown<T> {
 
     #[must_use]
     fn fit_size(font: &Font, font_size: f32, spacing: f32) -> Option<Vector2> {
-        T::LIST
-            .iter()
-            .map(|var| font.measure_text(var.as_str(), font_size, spacing))
+        T::iter()
+            .map(|var| font.measure_text(var.into(), font_size, spacing))
             .reduce(|acc, v| Vector2::new(acc.x.max(v.x), acc.y.max(v.y)))
     }
 
@@ -142,46 +74,123 @@ impl<T: DropdownEnum> Dropdown<T> {
         Some(())
     }
 
-    /// Returns `true` on change
+    /// Returns `true` on value change
     pub fn update(&mut self, d: &mut impl RaylibDraw) -> bool {
-        let mut temp: i32 = self.value.into();
-        if d.gui_dropdown_box(self.bounds, T::DROPDOWN_LIST, &mut temp, self.is_editing) {
-            self.is_editing = !self.is_editing;
-            if !self.is_editing && (self.value.into() != temp) {
-                self.value = temp.try_into().unwrap();
-                return true;
-            }
+        // SAFETY: T::iter() contains every variant, and self.value is T which must be a variant.
+        let value_index = unsafe { T::iter().position(|v| v == self.value).unwrap_unchecked() }
+            .try_into()
+            .expect("dropdown enum should not exceed i32::MAX variants");
+        let mut new_index = value_index;
+        let is_editing = self.is_editing;
+        let toggle_editing =
+            d.gui_dropdown_box(self.bounds, T::dropdown_list(), &mut new_index, is_editing);
+        if
+        // dropdowns only toggle for one tick and then spend dozens or hundreds of ticks retaining the new state
+        std::hint::unlikely(toggle_editing)
+            && std::mem::replace(&mut self.is_editing, !is_editing)
+            // people dont usually open the dropdown just to leave it unchanged
+            && std::hint::likely(value_index != new_index)
+        {
+            self.value = T::iter()
+                .nth(
+                    new_index
+                        .try_into()
+                        .expect("gui_dropdown_box should not assign a negative to `active`"),
+                )
+                .expect("gui_dropdown_box should assign a valid variant to `active`");
+            true
+        } else {
+            false
         }
-        false
     }
 }
 
-dropdown_enum! {
-    pub enum EditorMode {
-        Apple,
-        Orange,
-        Banana,
-        Mango,
-        FooBar = "Foo Bar",
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, IntoStaticStr, Display, EnumIter)]
+pub enum EditorMode {
+    #[default]
+    Vertex = 1,
+    Edge,
+    Border,
+    Face,
+    Mesh,
+    Object,
+}
+
+impl DropdownEnum for EditorMode {}
+
+pub enum MaterialMapIndex {
+    Albedo,
+    Metalness,
+    Normal,
+    Roughness,
+    Occlusion,
+    Emission,
+    Height,
+    Cubemap,
+    Irradiance,
+    Prefilter,
+    Brdf,
+}
+
+pub trait MaterialExt: RaylibMaterial {
+    #[inline]
+    fn material_map(&self, index: MaterialMapIndex) -> &MaterialMap {
+        &self.maps()[index as usize]
+    }
+
+    #[inline]
+    fn material_map_mut(&mut self, index: MaterialMapIndex) -> &mut MaterialMap {
+        &mut self.maps_mut()[index as usize]
     }
 }
+
+impl<T: RaylibMaterial> MaterialExt for T {}
 
 fn main() {
     use {KeyboardKey::*, MouseButton::*};
 
     let (mut rl, thread) = init().title("editor").resizable().build();
 
-    let mut mode = Dropdown::new(Rectangle::new(10.0, 10.0, 80.0, 20.0), EditorMode::Apple);
+    rl.set_target_fps(120);
+
+    let mut mode = Dropdown::new(
+        Rectangle::new(10.0, 10.0, 80.0, 20.0),
+        EditorMode::default(),
+    );
 
     let mut asset = Mesh::gen_mesh_cube(&thread, 1.0, 1.0, 1.0);
     let mut camera =
         Camera::perspective(Vector3::new(2.0, 2.0, 2.0), Vector3::ZERO, Vector3::Y, 45.0);
     let mut material = rl.load_material_default(&thread);
-    *material.maps_mut()[MaterialMapIndex::MATERIAL_MAP_ALBEDO as usize].color_mut() =
-        Color::LIGHTGRAY;
+    *material
+        .material_map_mut(MaterialMapIndex::Albedo)
+        .color_mut() = Color::LIGHTGRAY;
+
+    let mut keys_pressed = Vec::new();
 
     while !rl.window_should_close() {
         let dt = rl.get_frame_time();
+
+        keys_pressed.clear();
+        keys_pressed.extend(std::iter::from_fn(|| rl.get_key_pressed()));
+
+        if let Some(pos) = keys_pressed.iter().rposition(|&key| {
+            const KEYCODE_ONE: i32 = KEY_ONE as i32;
+            const KEYCODE_SIX: i32 = KEY_SIX as i32;
+            matches!(key as i32, KEYCODE_ONE..=KEYCODE_SIX)
+        }) {
+            // the majority of ticks will have no buttons pressed, and even fewer will be for these hotkeys specifically.
+            std::hint::cold_path();
+            mode.value = match keys_pressed.remove(pos) {
+                KEY_ONE => EditorMode::Vertex,
+                KEY_TWO => EditorMode::Edge,
+                KEY_THREE => EditorMode::Border,
+                KEY_FOUR => EditorMode::Face,
+                KEY_FIVE => EditorMode::Mesh,
+                KEY_SIX => EditorMode::Object,
+                _ => unreachable!(),
+            };
+        }
 
         if rl.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE) {
             rl.disable_cursor();
@@ -226,18 +235,41 @@ fn main() {
             d.draw_mesh(&mut asset, material.clone(), Matrix::identity());
         }
 
-        d.draw_ring(
-            d.get_world_to_screen(camera.target, camera),
-            6.0,
-            9.0,
-            0.0,
-            360.0,
-            10,
-            Color::GRAY,
-        );
+        // 3D 2D overlay
+
+        {
+            let vert_extent: f32 = 3.0;
+
+            let mut square = Rectangle {
+                width: vert_extent * 2.0,
+                height: vert_extent * 2.0,
+                ..Default::default()
+            };
+
+            // verts
+            for &vert_world in asset.vertices() {
+                let vert_screen = d.get_world_to_screen(vert_world, camera);
+                square.x = vert_screen.x - vert_extent;
+                square.y = vert_screen.y - vert_extent;
+                d.draw_rectangle_rec(square, Color::YELLOW);
+            }
+
+            // origin
+            d.draw_ring(
+                d.get_world_to_screen(camera.target, camera),
+                6.0,
+                9.0,
+                0.0,
+                360.0,
+                10,
+                Color::GRAY,
+            );
+        }
 
         // UI
         mode.update(&mut d);
+
+        d.draw_fps(0, 400);
     }
 
     unsafe {
