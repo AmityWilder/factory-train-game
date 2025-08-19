@@ -1,9 +1,22 @@
-#![feature(likely_unlikely, cold_path)]
+#![feature(
+    likely_unlikely,
+    cold_path,
+    array_windows,
+    iter_array_chunks,
+    sized_hierarchy,
+    unsize,
+    coerce_unsized
+)]
 
+use arrayvec::ArrayVec;
 use raylib::{math::glam::Quat, prelude::*};
 use std::sync::OnceLock;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter, IntoStaticStr};
+
+use crate::mesh::AmyMesh;
+
+mod mesh;
 
 pub trait DropdownEnum:
     'static + Sized + Copy + Eq + std::hash::Hash + IntoEnumIterator + Into<&'static str>
@@ -153,12 +166,12 @@ fn main() {
 
     rl.set_target_fps(120);
 
-    let mut mode = Dropdown::new(
+    let mut mode_dropdown = Dropdown::new(
         Rectangle::new(10.0, 10.0, 80.0, 20.0),
         EditorMode::default(),
     );
 
-    let mut asset = Mesh::gen_mesh_cube(&thread, 1.0, 1.0, 1.0);
+    let mut asset = AmyMesh::gen_cube(1.0, 1.0, 1.0);
     let mut camera =
         Camera::perspective(Vector3::new(2.0, 2.0, 2.0), Vector3::ZERO, Vector3::Y, 45.0);
     let mut material = rl.load_material_default(&thread);
@@ -181,7 +194,7 @@ fn main() {
         }) {
             // the majority of ticks will have no buttons pressed, and even fewer will be for these hotkeys specifically.
             std::hint::cold_path();
-            mode.value = match keys_pressed.remove(pos) {
+            mode_dropdown.value = match keys_pressed.remove(pos) {
                 KEY_ONE => EditorMode::Vertex,
                 KEY_TWO => EditorMode::Edge,
                 KEY_THREE => EditorMode::Border,
@@ -231,8 +244,21 @@ fn main() {
         // 3D scene
         {
             let mut d = d.begin_mode3D(camera);
+
             d.draw_grid(10, 1.0);
-            d.draw_mesh(&mut asset, material.clone(), Matrix::identity());
+
+            let mut face = ArrayVec::<&Vector3, 5>::new();
+            for verts in asset.face_vertices() {
+                face.clear();
+                face.try_extend_from_slice(verts.as_slice())
+                    .expect("faces do not exceed 4 vertices");
+                face.push(verts[0]);
+                for &world_positions in face.array_windows::<2>() {
+                    let [start_screen, end_screen] =
+                        world_positions.map(|v| d.get_world_to_screen(*v, camera));
+                    d.draw_line_v(start_screen, end_screen, Color::YELLOW);
+                }
+            }
         }
 
         // 3D 2D overlay
@@ -246,12 +272,41 @@ fn main() {
                 ..Default::default()
             };
 
-            // verts
-            for &vert_world in asset.vertices() {
-                let vert_screen = d.get_world_to_screen(vert_world, camera);
-                square.x = vert_screen.x - vert_extent;
-                square.y = vert_screen.y - vert_extent;
-                d.draw_rectangle_rec(square, Color::YELLOW);
+            match mode_dropdown.value {
+                EditorMode::Vertex => {
+                    for &vert_world in asset.vertices() {
+                        let vert_screen = d.get_world_to_screen(vert_world, camera);
+                        square.x = vert_screen.x - vert_extent;
+                        square.y = vert_screen.y - vert_extent;
+                        d.draw_rectangle_rec(square, Color::YELLOW);
+                    }
+                }
+                EditorMode::Edge => {
+                    let mut face = ArrayVec::<&Vector3, 5>::new();
+                    for verts in asset.face_vertices() {
+                        face.clear();
+                        face.try_extend_from_slice(verts.as_slice())
+                            .expect("faces do not exceed 4 vertices");
+                        face.push(verts[0]);
+                        for &world_positions in face.array_windows::<2>() {
+                            let [start_screen, end_screen] =
+                                world_positions.map(|v| d.get_world_to_screen(*v, camera));
+                            d.draw_line_v(start_screen, end_screen, Color::YELLOW);
+                        }
+                    }
+                }
+                EditorMode::Border => {
+                    // todo
+                }
+                EditorMode::Face => {
+                    // todo
+                }
+                EditorMode::Mesh => {
+                    // todo
+                }
+                EditorMode::Object => {
+                    // todo
+                }
             }
 
             // origin
@@ -267,7 +322,7 @@ fn main() {
         }
 
         // UI
-        mode.update(&mut d);
+        mode_dropdown.update(&mut d);
 
         d.draw_fps(0, 400);
     }
